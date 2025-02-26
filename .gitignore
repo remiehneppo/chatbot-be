@@ -1,0 +1,6 @@
+.env
+_*
+upload
+test_data
+temp
+.vscode
