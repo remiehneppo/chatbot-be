@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/generative-ai-go/genai"
+	"github.com/tieubaoca/chatbot-be/types"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -17,7 +18,7 @@ type GeminiService struct {
 	currentKey    int
 	client        *genai.Client
 	model         *genai.GenerativeModel
-	functionsCall map[string]FunctionHandler
+	functionsCall map[string]types.FunctionHandler
 	mu            sync.Mutex
 }
 
@@ -33,7 +34,7 @@ func NewGeminiService(apiKeys []string, modelName string) (*GeminiService, error
 	service := &GeminiService{
 		apiKeys:       apiKeys,
 		currentKey:    0,
-		functionsCall: make(map[string]FunctionHandler),
+		functionsCall: make(map[string]types.FunctionHandler),
 	}
 
 	err := service.initClient()
@@ -68,7 +69,7 @@ func (s *GeminiService) rotateAPIKey() error {
 	return s.initClient()
 }
 
-func (s *GeminiService) Chat(ctx context.Context, prompt string, messages []Message) (string, error) {
+func (s *GeminiService) Chat(ctx context.Context, prompt string, messages []types.Message) (string, error) {
 	fmt.Printf("Chat with prompt %s and history %v\n", prompt, messages)
 	// Convert messages to chat history
 	history := make([]*genai.Content, 0, len(messages))
@@ -168,7 +169,7 @@ func (s *GeminiService) handleFunctionCall(ctx context.Context, chat *genai.Chat
 }
 
 // Thêm method mới để hỗ trợ streaming
-func (s *GeminiService) ChatStream(ctx context.Context, prompt string, handler StreamHandler) error {
+func (s *GeminiService) ChatStream(ctx context.Context, prompt string, handler types.StreamHandler) error {
 	if handler == nil {
 		handler = defaultStreamHandler
 	}
@@ -208,7 +209,7 @@ func (s *GeminiService) ChatStream(ctx context.Context, prompt string, handler S
 }
 
 // RegisterFunction adds a new function to the model's capabilities
-func (s *GeminiService) RegisterFunction(name, description string, parameters map[string]*genai.Schema, handler FunctionHandler) {
+func (s *GeminiService) RegisterFunction(name, description string, parameters map[string]*genai.Schema, handler types.FunctionHandler) {
 	functionDeclaration := &genai.FunctionDeclaration{
 		Name:        name,
 		Description: description,

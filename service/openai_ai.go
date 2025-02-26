@@ -8,18 +8,19 @@ import (
 
 	"github.com/sashabaranov/go-openai"
 	"github.com/sashabaranov/go-openai/jsonschema"
+	"github.com/tieubaoca/chatbot-be/types"
 )
 
 var (
 	SystemMessageInitiateMechanicalEngineer = openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleSystem,
-		Content: "You are a mechanical engineer. You can answer questions about mechanical engineering. If you do not know the answer, you can research it the database before responding.",
+		Content: "You are a mechanical assistant. You can answer questions about mechanical engineering. If you do not know the answer, you can research it the database before responding. You answer questions by Vietnamese.",
 	}
 )
 
 type OpenAIService struct {
 	client        *openai.Client
-	functionsCall map[string]FunctionHandler
+	functionsCall map[string]types.FunctionHandler
 	tools         []openai.Tool
 }
 
@@ -28,11 +29,13 @@ func NewOpenAIService(baseURL string, apiKey string) *OpenAIService {
 	config.BaseURL = baseURL // Set this to your local LLM server URL
 	client := openai.NewClientWithConfig(config)
 	return &OpenAIService{
-		client: client,
+		client:        client,
+		functionsCall: make(map[string]types.FunctionHandler),
+		tools:         make([]openai.Tool, 0),
 	}
 }
 
-func (s *OpenAIService) Chat(ctx context.Context, messages []Message) (*Message, error) {
+func (s *OpenAIService) Chat(ctx context.Context, messages []types.Message) (*types.Message, error) {
 	// Convert our Message type to OpenAI chat messages
 	openaiMessages := make([]openai.ChatCompletionMessage, 0)
 	openaiMessages = append(openaiMessages, SystemMessageInitiateMechanicalEngineer)
@@ -49,7 +52,6 @@ func (s *OpenAIService) Chat(ctx context.Context, messages []Message) (*Message,
 		openai.ChatCompletionRequest{
 			Messages: openaiMessages,
 			Tools:    s.tools,
-			Stream:   true,
 		},
 	)
 
@@ -70,13 +72,13 @@ func (s *OpenAIService) Chat(ctx context.Context, messages []Message) (*Message,
 	}
 
 	// Convert response back to our Message type
-	return &Message{
+	return &types.Message{
 		Role:    "assistant",
 		Content: resp.Choices[0].Message.Content,
 	}, nil
 }
 
-func (s *OpenAIService) ChatStream(ctx context.Context, messages []Message, streamHandler StreamHandler) error {
+func (s *OpenAIService) ChatStream(ctx context.Context, messages []types.Message, streamHandler types.StreamHandler) error {
 	// Convert our Message type to OpenAI chat messages
 	openaiMessages := make([]openai.ChatCompletionMessage, 0)
 	openaiMessages = append(openaiMessages, SystemMessageInitiateMechanicalEngineer)
@@ -113,9 +115,9 @@ func (s *OpenAIService) ChatStream(ctx context.Context, messages []Message, stre
 
 }
 
-func (s *OpenAIService) RegisterFunctionCall(name, description string, params jsonschema.Definition, handler FunctionHandler) {
+func (s *OpenAIService) RegisterFunctionCall(name, description string, params jsonschema.Definition, handler types.FunctionHandler) {
 	if s.functionsCall == nil {
-		s.functionsCall = make(map[string]FunctionHandler)
+		s.functionsCall = make(map[string]types.FunctionHandler)
 	}
 	f := openai.FunctionDefinition{
 		Name:        name,
