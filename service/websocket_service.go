@@ -71,7 +71,6 @@ func (s *WebSocketService) HandleChat(w http.ResponseWriter, r *http.Request) {
 			// Read message from client
 			messageType, p, err := conn.ReadMessage()
 			if err != nil {
-				log.Println("Read error:", err)
 				return
 			}
 			var req types.WebsocketRequest
