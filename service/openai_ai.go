@@ -1,4 +1,4 @@
-package services
+package service
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 var (
 	SystemMessageInitiateMechanicalEngineer = openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleSystem,
-		Content: "You are a mechanical assistant. You can answer questions about mechanical engineering. If you do not know the answer, you can research it the database before responding. You answer questions by Vietnamese.",
+		Content: "You are a technical assistant. You can answer questions about technical engineering. If you do not know the answer, you can research it the database before responding. You answer questions by Vietnamese and only Vietnamese.",
 	}
 )
 
@@ -22,9 +22,10 @@ type OpenAIService struct {
 	client        *openai.Client
 	functionsCall map[string]types.FunctionHandler
 	tools         []openai.Tool
+	model         string
 }
 
-func NewOpenAIService(baseURL string, apiKey string) *OpenAIService {
+func NewOpenAIService(baseURL string, apiKey, model string) *OpenAIService {
 	config := openai.DefaultConfig(apiKey)
 	config.BaseURL = baseURL // Set this to your local LLM server URL
 	client := openai.NewClientWithConfig(config)
@@ -32,6 +33,7 @@ func NewOpenAIService(baseURL string, apiKey string) *OpenAIService {
 		client:        client,
 		functionsCall: make(map[string]types.FunctionHandler),
 		tools:         make([]openai.Tool, 0),
+		model:         model,
 	}
 }
 
@@ -52,6 +54,7 @@ func (s *OpenAIService) Chat(ctx context.Context, messages []types.Message) (*ty
 		openai.ChatCompletionRequest{
 			Messages: openaiMessages,
 			Tools:    s.tools,
+			Model:    s.model,
 		},
 	)
 
@@ -95,6 +98,7 @@ func (s *OpenAIService) ChatStream(ctx context.Context, messages []types.Message
 		openai.ChatCompletionRequest{
 			Messages: openaiMessages,
 			Tools:    s.tools,
+			Model:    s.model,
 		},
 	)
 	if err != nil {
@@ -157,6 +161,7 @@ func (s *OpenAIService) handleFunctionCall(ctx context.Context, openaiMessages [
 		openai.ChatCompletionRequest{
 			Messages: openaiMessages,
 			Tools:    s.tools,
+			Model:    s.model,
 		},
 	)
 	if err != nil {

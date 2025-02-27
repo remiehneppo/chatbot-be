@@ -1,6 +1,7 @@
-package services
+package service
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -40,95 +41,106 @@ func (s *WebSocketService) HandleChat(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	// Create done channel for graceful shutdown
+	defer conn.Close()
+
+	// Tạo context có thể cancel
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	// Channel để thông báo khi connection đóng
 	done := make(chan struct{})
-	defer close(done)
 
-	// Start ping ticker in separate goroutine
+	// Goroutine xử lý đóng kết nối
 	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-
+		defer close(done)
 		for {
-			select {
-			case <-done:
-				return
-			case <-ticker.C:
-				if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second)); err != nil {
-					log.Printf("ping error: %v", err)
-					return
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					log.Printf("WebSocket read error: %v", err)
 				}
+				return
 			}
 		}
 	}()
-
 	for {
-		// Read message from client
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			log.Println("Read error:", err)
-			continue
-		}
-		var req types.WebsocketRequest
-		if err := json.Unmarshal(p, &req); err != nil {
-			log.Println("Unmarshal error:", err)
-			continue
-		}
-		payloadBytes, err := json.Marshal(req.Payload)
-		if err != nil {
-			log.Println("Marshal error:", err)
-			continue
-		}
-		switch req.Type {
-		case types.TypeWebsocketChat:
-			{
-				// Process message with AI
-				var payload types.WebSocketChatPayload
-				err := json.Unmarshal(payloadBytes, &payload)
-
-				if err != nil {
-					log.Println("Unmarshal error:", err)
-					continue
-				}
-				// Stream AI responses back to client
-				res, err := s.ai.Chat(r.Context(), payload.Messages)
-				if err != nil {
-					log.Println("AI error:", err)
-					conn.WriteMessage(messageType, []byte("Error processing message"))
-					continue
-				}
-				botMessage := types.WebSocketResponse{
-					Type:    types.TypeWebsocketChat,
-					Payload: types.WebSocketChatResponse{Message: res.Content},
-				}
-				if err := conn.WriteJSON(botMessage); err != nil {
-					log.Println("Write error:", err)
-					continue
-				}
-
-			}
-		case types.TypeWebsocketPing:
-			{
-				// Send a pong message back to the client
-				pongRes := types.WebSocketResponse{
-					Type:    types.TypeWebsocketPong,
-					Payload: nil,
-				}
-				if err := conn.WriteJSON(pongRes); err != nil {
-					log.Println("Write error:", err)
-				}
-				continue
-			}
+		select {
+		case <-done:
+			return
 		default:
-			{
-				log.Println("Invalid message type")
+			// Read message from client
+			messageType, p, err := conn.ReadMessage()
+			if err != nil {
+				log.Println("Read error:", err)
+				return
+			}
+			var req types.WebsocketRequest
+			if err := json.Unmarshal(p, &req); err != nil {
+				conn.WriteMessage(messageType, []byte("Error processing message"))
+				log.Println("Unmarshal error:", err)
 				continue
+			}
+			payloadBytes, err := json.Marshal(req.Payload)
+			if err != nil {
+				conn.WriteMessage(messageType, []byte("Error processing message"))
+				log.Println("Marshal error:", err)
+				continue
+			}
+			switch req.Type {
+			case types.TypeWebsocketChat:
+				{
+					// Process message with AI
+					var payload types.WebSocketChatPayload
+					err := json.Unmarshal(payloadBytes, &payload)
+
+					if err != nil {
+						log.Println("Unmarshal error:", err)
+						conn.WriteMessage(messageType, []byte("Error processing message"))
+						continue
+					}
+					// Stream AI responses back to client
+					res, err := s.ai.Chat(ctx, payload.Messages)
+					if err != nil {
+						log.Println("AI error:", err)
+						conn.WriteMessage(messageType, []byte("Error processing message"))
+						continue
+					}
+					botMessage := types.WebSocketResponse{
+						Type:    types.TypeWebsocketChat,
+						Payload: types.WebSocketChatResponse{Message: res.Content},
+					}
+					if err := conn.WriteJSON(botMessage); err != nil {
+						log.Println("Write error:", err)
+						continue
+					}
+
+				}
+			case types.TypeWebsocketPing:
+				{
+					// Send a pong message back to the client
+					pongRes := types.WebSocketResponse{
+						Type:    types.TypeWebsocketPong,
+						Payload: nil,
+					}
+					if err := conn.WriteJSON(pongRes); err != nil {
+						log.Println("Write error:", err)
+					}
+					continue
+				}
+			default:
+				{
+					log.Println("Invalid message type")
+					continue
+				}
 			}
 		}
 
 	}
 }
 
-func (s *WebSocketService) Health(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+func (s *WebSocketService) Health() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
 }

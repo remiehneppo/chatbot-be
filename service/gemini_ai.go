@@ -1,10 +1,11 @@
-package services
+package service
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/google/generative-ai-go/genai"
@@ -70,7 +71,7 @@ func (s *GeminiService) rotateAPIKey() error {
 }
 
 func (s *GeminiService) Chat(ctx context.Context, prompt string, messages []types.Message) (string, error) {
-	fmt.Printf("Chat with prompt %s and history %v\n", prompt, messages)
+	log.Printf("Chat with prompt %s and history %v\n", prompt, messages)
 	// Convert messages to chat history
 	history := make([]*genai.Content, 0, len(messages))
 	for _, msg := range messages {
@@ -125,7 +126,7 @@ func (s *GeminiService) Chat(ctx context.Context, prompt string, messages []type
 }
 
 func (s *GeminiService) handleFunctionCall(ctx context.Context, chat *genai.ChatSession, functions []genai.FunctionCall) (*genai.GenerateContentResponse, error) {
-	fmt.Printf("Handle function call with functions %v\n", functions)
+	log.Printf("Handle function call with functions %v\n", functions)
 	funcResults := []genai.Part{}
 	for _, function := range functions {
 		handler, exists := s.functionsCall[function.Name]
@@ -147,7 +148,7 @@ func (s *GeminiService) handleFunctionCall(ctx context.Context, chat *genai.Chat
 			Name:     function.Name,
 			Response: map[string]any{"result": result},
 		})
-		fmt.Printf("Function %s executed with result %v\n", function.Name, result)
+		log.Printf("Function %s executed with result %v\n", function.Name, result)
 	}
 	// Generate final response with function result
 	resp, err := chat.SendMessage(

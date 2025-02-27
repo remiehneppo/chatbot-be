@@ -1,4 +1,4 @@
-package services
+package service
 
 import (
 	"bufio"
@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/tieubaoca/chatbot-be/types"
 )
 
 // PDFService handles PDF processing operations
@@ -20,28 +22,9 @@ type PDFService struct {
 }
 
 // PDFChunk represents a processed chunk of PDF text with metadata
-type PDFChunk struct {
-	Content  string      // The actual text content
-	Page     int         // Page number where the chunk is from
-	Metadata PDFMetadata // Associated metadata for the chunk
-}
-
-// PDFMetadata contains metadata information for PDF chunks
-type PDFMetadata struct {
-	Title      string // Title of the PDF document
-	Source     string // Source file path
-	PageNum    int    // Current page number
-	TotalPages int    // Total number of pages in the document
-}
-
-// PDFServiceConfig contains configuration options for PDF processing
-type PDFServiceConfig struct {
-	MaxChunkSize int // Maximum size for text chunks
-	OverlapSize  int // Size of overlap between chunks
-}
 
 // NewPDFService creates a new PDF service with configurable chunk sizes
-func NewPDFService(config PDFServiceConfig) *PDFService {
+func NewPDFService(config types.DocumentServiceConfig) *PDFService {
 	if config.MaxChunkSize == 0 {
 		config.MaxChunkSize = 1000
 	}
@@ -61,16 +44,16 @@ func NewPDFService(config PDFServiceConfig) *PDFService {
 //   - c: Channel to send processed chunks
 //
 // Returns:
-//   - []PDFChunk: Slice of processed PDF chunks
 //   - error: Error if processing fails
-func (s *PDFService) ProcessPDF(filePath string, c chan<- PDFChunk) ([]PDFChunk, error) {
+func (s *PDFService) ProcessPDF(filePath string, c chan<- types.DocumentChunk) error {
+	defer close(c)
 	// Get total pages
 	totalPages, err := getNumPages(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get total pages: %w", err)
+		close(c)
 	}
 
-	var allChunks []PDFChunk
+	var allChunks []types.DocumentChunk
 
 	// Process each page
 	for pageNum := 1; pageNum <= totalPages; pageNum++ {
@@ -91,7 +74,7 @@ func (s *PDFService) ProcessPDF(filePath string, c chan<- PDFChunk) ([]PDFChunk,
 		}
 
 		// Create metadata for this page
-		metadata := PDFMetadata{
+		metadata := types.DocumentMetadata{
 			Source:     filePath,
 			Title:      getFileNameWithoutExt(filePath),
 			PageNum:    pageNum,
@@ -107,18 +90,31 @@ func (s *PDFService) ProcessPDF(filePath string, c chan<- PDFChunk) ([]PDFChunk,
 
 	// Return error if no text was extracted from any page
 	if len(allChunks) == 0 {
-		return nil, fmt.Errorf("no text could be extracted from any page of the PDF")
+		return fmt.Errorf("no text could be extracted from any page of the PDF")
 	}
 
-	return allChunks, nil
+	return nil
 }
 
 // getFileNameWithoutExt extracts filename without extension from a file path
 func getFileNameWithoutExt(filepath string) string {
+	// Get base filename from path
 	base := filepath[strings.LastIndex(filepath, "/")+1:]
+
+	// Remove extension
 	if idx := strings.LastIndex(base, "."); idx != -1 {
-		return base[:idx]
+		base = base[:idx]
 	}
+
+	// Remove timestamp suffix (format: _1234567890)
+	if idx := strings.LastIndex(base, "_"); idx != -1 {
+		// Check if the part after underscore is a number
+		suffix := base[idx+1:]
+		if _, err := strconv.ParseInt(suffix, 10, 64); err == nil {
+			base = base[:idx]
+		}
+	}
+
 	return base
 }
 
@@ -135,13 +131,13 @@ func (s *PDFService) extractText(filePath string, pageNumber int) (string, error
 }
 
 // createChunks splits text into overlapping chunks with proper sentence boundaries
-func (s *PDFService) createChunks(text string, metadata PDFMetadata) []PDFChunk {
-	var chunks []PDFChunk
+func (s *PDFService) createChunks(text string, metadata types.DocumentMetadata) []types.DocumentChunk {
+	var chunks []types.DocumentChunk
 	textLen := len(text)
 
 	// Return early if text fits in one chunk
 	if textLen <= s.maxChunkSize {
-		return []PDFChunk{{
+		return []types.DocumentChunk{{
 			Content:  text,
 			Page:     metadata.PageNum,
 			Metadata: metadata,
@@ -156,7 +152,7 @@ func (s *PDFService) createChunks(text string, metadata PDFMetadata) []PDFChunk 
 			// Handle last chunk
 			chunk := strings.TrimSpace(text[currentPos:])
 			if chunk != "" {
-				chunks = append(chunks, PDFChunk{
+				chunks = append(chunks, types.DocumentChunk{
 					Content:  chunk,
 					Page:     metadata.PageNum,
 					Metadata: metadata,
@@ -186,7 +182,7 @@ func (s *PDFService) createChunks(text string, metadata PDFMetadata) []PDFChunk 
 
 		chunk := strings.TrimSpace(text[currentPos:sentenceEnd])
 		if chunk != "" {
-			chunks = append(chunks, PDFChunk{
+			chunks = append(chunks, types.DocumentChunk{
 				Content:  chunk,
 				Page:     metadata.PageNum,
 				Metadata: metadata,

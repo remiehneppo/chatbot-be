@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/weaviate/weaviate-go-client/v4/weaviate"
+	"github.com/weaviate/weaviate-go-client/v4/weaviate/auth"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate/filters"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate/graphql"
 	"github.com/weaviate/weaviate/entities/models"
@@ -35,15 +36,20 @@ var (
 )
 
 type WeaviateStore struct {
-	client *weaviate.Client
+	client         *weaviate.Client
+	text2VecModule string
 }
 
-func NewWeaviateStore(host string) (*WeaviateStore, error) {
+func NewWeaviateStore(scheme, host, apiKey, text2vec string) (*WeaviateStore, error) {
 	cfg := weaviate.Config{
 		Host:   host,
-		Scheme: "http",
+		Scheme: scheme,
+		AuthConfig: &auth.ApiKey{
+			Value: apiKey,
+		},
+		Headers: nil,
 	}
-
+	DOCUMENT_CLASS_OBJECT.Vectorizer = text2vec
 	client, err := weaviate.NewClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create weaviate client: %v", err)
@@ -69,7 +75,10 @@ func NewWeaviateStore(host string) (*WeaviateStore, error) {
 			return nil, fmt.Errorf("failed to create Document class: %v", err)
 		}
 	}
-	return &WeaviateStore{client: client}, nil
+	return &WeaviateStore{
+		client:         client,
+		text2VecModule: text2vec,
+	}, nil
 }
 
 func (s *WeaviateStore) ReInit() error {
