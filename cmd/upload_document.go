@@ -30,6 +30,8 @@ to quickly create a Cobra application.`,
 		databaseURL, _ := cmd.Flags().GetString("database-url")
 		text2vec := cmd.Flag("text2vec").Value.String()
 		filePath, _ := cmd.Flags().GetString("file")
+		//get array tags
+		tags, _ := cmd.Flags().GetStringArray("tags")
 		reinit, _ := cmd.Flags().GetBool("reinit")
 
 		pdfService := service.NewPDFService(
@@ -46,7 +48,8 @@ to quickly create a Cobra application.`,
 			httpScheme = "http"
 			databaseURL = strings.Replace(databaseURL, "http://", "", 1)
 		}
-		weaviateDb, err := database.NewWeaviateStore(httpScheme, databaseURL, os.Getenv("WEAVIATE_API_KEY"), text2vec)
+		log.Println("api key", os.Getenv("WEAVIATE_APIKEY"))
+		weaviateDb, err := database.NewWeaviateStore(httpScheme, databaseURL, os.Getenv("WEAVIATE_APIKEY"), text2vec)
 		if err != nil {
 			log.Fatalf("Failed to connect to Weaviate database: %v", err)
 		}
@@ -64,17 +67,17 @@ to quickly create a Cobra application.`,
 				Content: chunk.Content,
 				Metadata: database.Metadata{
 					Title: chunk.Metadata.Title,
+					Tags:  tags,
 					Custom: map[string]string{
 						"page": fmt.Sprintf("%d", chunk.Metadata.PageNum),
 					},
 				},
 			}
 			err = weaviateDb.UpsertDocument(context.Background(), document, nil)
-			fmt.Println("Uploaded document page", chunk.Metadata.PageNum)
-			fmt.Println("Content:", chunk.Content)
 			if err != nil {
 				log.Fatalf("Failed to upload document to Weaviate database: %v", err)
 			}
+			fmt.Println("Uploaded document page", chunk.Metadata.PageNum)
 		}
 	},
 }
@@ -95,4 +98,6 @@ func init() {
 	uploadDocumentCmd.Flags().StringP("database-url", "d", "http://192.168.1.2:8080", "URL for the Weaviate database")
 	uploadDocumentCmd.Flags().StringP("text2vec", "t", "text2vec-transformers", "Text2Vec model to use for the AI service")
 	uploadDocumentCmd.Flags().BoolP("reinit", "r", false, "Reinitialize the database")
+	uploadDocumentCmd.Flags().StringArrayP("tags", "g", []string{}, "Tags for the document")
+
 }

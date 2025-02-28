@@ -25,7 +25,7 @@ var (
 			{Name: "tags", DataType: []string{"text[]"}},
 			{Name: "custom", DataType: []string{"object"},
 				NestedProperties: []*models.NestedProperty{
-					{Name: "key", DataType: []string{"text"}},
+					{Name: "page", DataType: []string{"text"}},
 				},
 			},
 			{Name: "createdAt", DataType: []string{"int"}},
@@ -44,10 +44,13 @@ func NewWeaviateStore(scheme, host, apiKey, text2vec string) (*WeaviateStore, er
 	cfg := weaviate.Config{
 		Host:   host,
 		Scheme: scheme,
-		AuthConfig: &auth.ApiKey{
+		AuthConfig: auth.ApiKey{
 			Value: apiKey,
 		},
-		Headers: nil,
+		Headers: map[string]string{
+			"X-Weaviate-Api-Key":     apiKey,
+			"X-Weaviate-Cluster-Url": fmt.Sprintf("%s://%s", scheme, host),
+		},
 	}
 	DOCUMENT_CLASS_OBJECT.Vectorizer = text2vec
 	client, err := weaviate.NewClient(cfg)

@@ -4,15 +4,11 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/spf13/cobra"
 	"github.com/tieubaoca/chatbot-be/database"
 	"github.com/tieubaoca/chatbot-be/handler"
@@ -34,9 +30,7 @@ var startServerCmd = &cobra.Command{
 		apiKey := os.Getenv("OPENAI_API_KEY")
 
 		// Initialize services
-		aiService := service.NewOpenAIService(baseURL, apiKey, model)
 
-		wsService := service.NewWebSocketService(aiService)
 		pdfService := service.NewPDFService(
 			types.DocumentServiceConfig{
 				MaxChunkSize: 1000,
@@ -50,111 +44,26 @@ var startServerCmd = &cobra.Command{
 			httpScheme = "http"
 			databaseURL = strings.Replace(databaseURL, "http://", "", 1)
 		}
-		weaviateDb, err := database.NewWeaviateStore(httpScheme, databaseURL, os.Getenv("WEAVIATE_API_KEY"), text2vec)
+		weaviateDb, err := database.NewWeaviateStore(httpScheme, databaseURL, os.Getenv("WEAVIATE_APIKEY"), text2vec)
 		if err != nil {
 			log.Fatalf("Failed to connect to Weaviate database: %v", err)
 		}
+		aiService := service.NewOpenAIService(baseURL, apiKey, model, weaviateDb)
+		if err := aiService.RegisterRAGFunctionCall(); err != nil {
+			log.Fatalf("Failed to register RAG function call: %v", err)
+		}
 
-		aiService.RegisterFunctionCall(
-			"retrieve_document",
-			"Retrieve a document from the database that relative to the given text",
-			jsonschema.Definition{
-				Type:        "object",
-				Description: "Retrieve a document from the database that relative to the given text",
-				Properties: map[string]jsonschema.Definition{
-					"queries": {
-						Type:        "array",
-						Description: "List of queries to retrieve the document",
-						Items: &jsonschema.Definition{
-							Type: "string",
-						},
-					},
-				},
-			},
-			func(ctx context.Context, params []byte) (interface{}, error) {
-
-				var queries struct {
-					Queries []string `json:"queries"`
-				}
-				if err := json.Unmarshal(params, &queries); err != nil {
-					return nil, err
-				}
-				fmt.Println(queries)
-				docs, _, err := weaviateDb.SearchSimilar(ctx, queries.Queries, 5)
-				if err != nil {
-					return nil, err
-				}
-				jsonDocs, err := json.Marshal(docs)
-				if err != nil {
-					return nil, err
-				}
-				fmt.Println(string(jsonDocs))
-				return string(jsonDocs), nil
-			},
-		)
-
-		aiService.RegisterFunctionCall(
-			"find_position_similar_document",
-			"Find the position of a similar document in the database, return the title and page number",
-			jsonschema.Definition{
-				Type:        "object",
-				Description: "Find the position of a similar document in the database, return the title and page number",
-				Properties: map[string]jsonschema.Definition{
-					"queries": {
-						Type:        "array",
-						Description: "List of queries to retrieve the document",
-						Items: &jsonschema.Definition{
-							Type: "string",
-						},
-					},
-				},
-			},
-			func(ctx context.Context, params []byte) (interface{}, error) {
-
-				var queries struct {
-					Queries []string `json:"queries"`
-				}
-				if err := json.Unmarshal(params, &queries); err != nil {
-					return nil, err
-				}
-				fmt.Println(queries)
-				docs, _, err := weaviateDb.SearchSimilar(ctx, queries.Queries, 5)
-				if err != nil {
-					return nil, err
-				}
-				if err != nil {
-					return nil, err
-				}
-				type Position struct {
-					Title string `json:"title"`
-					Page  string `json:"page"`
-				}
-				var positions []Position
-				for _, doc := range docs {
-					positions = append(positions, Position{
-						Title: doc.Metadata.Title,
-						Page:  doc.Metadata.Custom["page"],
-					})
-				}
-				jsonPositions, err := json.Marshal(positions)
-				if err != nil {
-					return nil, err
-				}
-				fmt.Println(string(jsonPositions))
-				return string(jsonPositions), nil
-			},
-		)
-
+		// Initialize handlers
 		corsHandler := handler.NewCorsHandler()
 		uploadService := service.NewFileService("upload", weaviateDb, pdfService)
 		uploadHandler := handler.NewUploadHandler(uploadService)
 		chatHandler := handler.NewChatHandler(aiService)
+		searchHandler := handler.NewSearchHandler(weaviateDb) // Add this line
 
 		// Setup routes
-		http.HandleFunc("/ws/chat", wsService.HandleChat)
-		http.Handle("/health", corsHandler.CorsMiddleware(wsService.Health()))
 		http.Handle("/api/v1/upload", corsHandler.CorsMiddleware(uploadHandler.UploadDocumentHandler()))
 		http.Handle("/api/v1/chat", corsHandler.CorsMiddleware(chatHandler.HandleChat()))
+		http.Handle("/api/v1/search", corsHandler.CorsMiddleware(searchHandler.HandleSearch())) // Add this line
 
 		log.Printf("Starting WebSocket server on port %s...\n", port)
 		if err := http.ListenAndServe(":"+port, nil); err != nil {
