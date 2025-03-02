@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/tieubaoca/chatbot-be/database"
+	"github.com/tieubaoca/chatbot-be/types"
 )
 
 type SearchHandler struct {
@@ -18,8 +19,7 @@ type SearchRequest struct {
 }
 
 type SearchResponse struct {
-	Status    string              `json:"status"`
-	Documents []database.Document `json:"data"`
+	Documents []database.Document `json:"documents"`
 }
 
 func NewSearchHandler(vectorDB *database.WeaviateStore) *SearchHandler {
@@ -54,7 +54,6 @@ func (h *SearchHandler) HandleSearch() http.Handler {
 			h.sendError(w, "Search failed: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-
 		// Send response
 		h.sendSuccess(w, docs)
 	})
@@ -70,8 +69,12 @@ func (h *SearchHandler) sendError(w http.ResponseWriter, message string, status 
 
 func (h *SearchHandler) sendSuccess(w http.ResponseWriter, docs []database.Document) {
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(SearchResponse{
-		Status:    "success",
+	searchRes := SearchResponse{
 		Documents: docs,
-	})
+	}
+	resData := types.DataResponse{
+		Status: "success",
+		Data:   searchRes,
+	}
+	json.NewEncoder(w).Encode(resData)
 }
