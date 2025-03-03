@@ -17,7 +17,7 @@ const BATCH_SIZE = 200
 var (
 	DOCUMENT_CLASS        = "Document"
 	DOCUMENT_CLASS_OBJECT = &models.Class{
-		Class: "Document",
+		Class: DOCUMENT_CLASS,
 		Properties: []*models.Property{
 			{Name: "content", DataType: []string{"text"}},
 			{Name: "title", DataType: []string{"text"}},
@@ -98,7 +98,7 @@ func (s *WeaviateStore) ReInit() error {
 }
 
 func (s *WeaviateStore) UpsertDocument(ctx context.Context, doc *Document, embedding []float32) error {
-	className := "Document"
+	className := DOCUMENT_CLASS
 	properties := map[string]interface{}{
 		"content":   doc.Content,
 		"title":     doc.Metadata.Title,
@@ -175,7 +175,7 @@ func (s *WeaviateStore) BatchInsertDocuments(ctx context.Context, docs []Documen
 
 func (s *WeaviateStore) DeleteDocument(ctx context.Context, id string) error {
 	return s.client.Data().Deleter().
-		WithClassName("Document").
+		WithClassName(DOCUMENT_CLASS).
 		WithID(id).
 		Do(ctx)
 }
@@ -199,7 +199,7 @@ func (s *WeaviateStore) SearchSimilarWithMetadata(ctx context.Context, queries [
 
 	// Combined query with both vector similarity and metadata filters
 	getBuilder := s.client.GraphQL().Get().
-		WithClassName("Document").
+		WithClassName(DOCUMENT_CLASS).
 		WithFields(fields...).
 		WithNearText(nearVector)
 	if limit > 0 {
@@ -212,17 +212,17 @@ func (s *WeaviateStore) SearchSimilarWithMetadata(ctx context.Context, queries [
 	result, err := getBuilder.Do(ctx)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("search failed: %v", err)
+		return nil, nil, err
 	}
 	if result.Errors != nil {
-		return nil, nil, fmt.Errorf("search failed: %v", result.Errors)
+		return nil, nil, fmt.Errorf("search failed: %v", result.Errors[0].Message)
 	}
 
 	// Parse results
 	var docs []Document
 	var distances []float32
 
-	if data, ok := result.Data["Get"].(map[string]interface{})["Document"].([]interface{}); ok {
+	if data, ok := result.Data["Get"].(map[string]interface{})[DOCUMENT_CLASS].([]interface{}); ok {
 		for _, item := range data {
 			if doc, ok := item.(map[string]interface{}); ok {
 				document := Document{
@@ -235,11 +235,13 @@ func (s *WeaviateStore) SearchSimilarWithMetadata(ctx context.Context, queries [
 					},
 					CreatedAt: int64(doc["createdAt"].(float64)),
 				}
+
 				docs = append(docs, document)
 
 				if additional, ok := doc["_additional"].(map[string]interface{}); ok {
 					distances = append(distances, float32(additional["distance"].(float64)))
 					document.ID = additional["id"].(string)
+					document.Metadata.Custom["distance"] = fmt.Sprintf("%f", additional["distance"].(float64))
 				}
 			}
 		}
@@ -268,7 +270,7 @@ func (s *WeaviateStore) SearchByMetadata(ctx context.Context, metadata Metadata,
 	where := buildMetadataFilter(metadata)
 
 	getBuilder := s.client.GraphQL().Get().
-		WithClassName("Document").
+		WithClassName(DOCUMENT_CLASS).
 		WithFields(fields...)
 	if limit > 0 {
 		getBuilder = getBuilder.WithLimit(limit)
@@ -286,7 +288,7 @@ func (s *WeaviateStore) SearchByMetadata(ctx context.Context, metadata Metadata,
 	}
 
 	var docs []Document
-	if data, ok := result.Data["Get"].(map[string]interface{})["Document"].([]interface{}); ok {
+	if data, ok := result.Data["Get"].(map[string]interface{})[DOCUMENT_CLASS].([]interface{}); ok {
 		for _, item := range data {
 			if doc, ok := item.(map[string]interface{}); ok {
 				document := Document{
