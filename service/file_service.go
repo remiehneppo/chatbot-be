@@ -76,7 +76,7 @@ func (s *FileService) UploadFile(req types.UploadRequest, file *multipart.FileHe
 	// Process PDF và lưu vào vector DB
 	if ext == ".pdf" {
 		chunkChan := make(chan types.DocumentChunk)
-		go s.pdfService.ProcessPDF(filepath.Join(s.uploadDir, filename), chunkChan)
+		go s.pdfService.ProcessPDF(filepath.Join(s.uploadDir, filename+ext), req, chunkChan)
 		for chunk := range chunkChan {
 			c <- types.ProcessingDocumentStatus{
 				Status:         "processing",

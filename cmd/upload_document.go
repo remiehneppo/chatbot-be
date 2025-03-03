@@ -61,7 +61,11 @@ to quickly create a Cobra application.`,
 		}
 
 		chunkChan := make(chan types.DocumentChunk)
-		go pdfService.ProcessPDF(filePath, chunkChan)
+		req := types.UploadRequest{
+			Title: service.GetFileNameWithoutExt(filePath),
+			Tags:  tags,
+		}
+		go pdfService.ProcessPDF(filePath, req, chunkChan)
 		for chunk := range chunkChan {
 			document := &database.Document{
 				Content: chunk.Content,

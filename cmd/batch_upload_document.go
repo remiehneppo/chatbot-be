@@ -101,8 +101,12 @@ func init() {
 
 func upload(filePath string, weaviateDb *database.WeaviateStore, pdfService *service.PDFService, tags []string) error {
 	chunkChan := make(chan types.DocumentChunk)
+	req := types.UploadRequest{
+		Title: service.GetFileNameWithoutExt(filePath),
+		Tags:  tags,
+	}
 	defer close(chunkChan)
-	go pdfService.ProcessPDF(filePath, chunkChan)
+	go pdfService.ProcessPDF(filePath, req, chunkChan)
 	for chunk := range chunkChan {
 		document := &database.Document{
 			Content: chunk.Content,
@@ -116,7 +120,7 @@ func upload(filePath string, weaviateDb *database.WeaviateStore, pdfService *ser
 		}
 		err := weaviateDb.UpsertDocument(context.Background(), document, nil)
 		if err != nil {
-			log.Println("Failed to upload document to Weaviate database: %v", err)
+			log.Printf("Failed to upload document to Weaviate database: %v", err)
 			return err
 		}
 		fmt.Println("Uploaded document page", chunk.Metadata.PageNum)

@@ -9,17 +9,17 @@ import (
 	"strings"
 )
 
-type PDFHandler struct {
+type DocumentHandler struct {
 	uploadDir string
 }
 
-func NewPDFHandler(uploadDir string) *PDFHandler {
-	return &PDFHandler{
+func NewPDFHandler(uploadDir string) *DocumentHandler {
+	return &DocumentHandler{
 		uploadDir: uploadDir,
 	}
 }
 
-func (h *PDFHandler) ServePDF() http.Handler {
+func (h *DocumentHandler) ServeDocument() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -57,7 +57,7 @@ func (h *PDFHandler) ServePDF() http.Handler {
 	})
 }
 
-func (h *PDFHandler) findFileWithTimestamp(requestedName string) (string, error) {
+func (h *DocumentHandler) findFileWithTimestamp(requestedName string) (string, error) {
 	files, err := os.ReadDir(h.uploadDir)
 	if err != nil {
 		return "", err

@@ -45,7 +45,7 @@ func NewPDFService(config types.DocumentServiceConfig) *PDFService {
 //
 // Returns:
 //   - error: Error if processing fails
-func (s *PDFService) ProcessPDF(filePath string, c chan<- types.DocumentChunk) error {
+func (s *PDFService) ProcessPDF(filePath string, req types.UploadRequest, c chan<- types.DocumentChunk) error {
 	defer close(c)
 	// Get total pages
 	totalPages, err := getNumPages(filePath)
@@ -75,8 +75,8 @@ func (s *PDFService) ProcessPDF(filePath string, c chan<- types.DocumentChunk) e
 
 		// Create metadata for this page
 		metadata := types.DocumentMetadata{
-			Source:     filePath,
-			Title:      getFileNameWithoutExt(filePath),
+			Source:     req.Source,
+			Title:      req.Title + ".pdf",
 			PageNum:    pageNum,
 			TotalPages: totalPages,
 		}
@@ -97,7 +97,7 @@ func (s *PDFService) ProcessPDF(filePath string, c chan<- types.DocumentChunk) e
 }
 
 // getFileNameWithoutExt extracts filename without extension from a file path
-func getFileNameWithoutExt(filepath string) string {
+func GetFileNameWithoutExt(filepath string) string {
 	// Get base filename from path
 	base := filepath[strings.LastIndex(filepath, "/")+1:]
 
@@ -241,7 +241,7 @@ func (s *PDFService) extractTextWithTesseract(pdfPath string, pageNumber int) (s
 	if _, err := os.Stat("temp"); os.IsNotExist(err) {
 		os.Mkdir("temp", os.ModePerm)
 	}
-	tempFolder := filepath.Join("temp", getFileNameWithoutExt(pdfPath))
+	tempFolder := filepath.Join("temp", GetFileNameWithoutExt(pdfPath))
 	if _, err := os.Stat(tempFolder); err == nil {
 		os.RemoveAll(tempFolder)
 	}
