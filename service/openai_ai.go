@@ -58,8 +58,8 @@ func (s *OpenAIService) Chat(ctx context.Context, messages []types.Message) (*ty
 		ctx,
 		openai.ChatCompletionRequest{
 			Messages: openaiMessages,
-			Tools:    s.tools,
-			Model:    s.model,
+			// Tools:    s.tools,
+			Model: s.model,
 		},
 	)
 
@@ -110,8 +110,8 @@ func (s *OpenAIService) ChatStream(ctx context.Context, messages []types.Message
 		ctx,
 		openai.ChatCompletionRequest{
 			Messages: openaiMessages,
-			Tools:    s.tools,
-			Model:    s.model,
+			// Tools:    s.tools,
+			Model: s.model,
 		},
 	)
 	if err != nil {
@@ -219,8 +219,8 @@ func (s *OpenAIService) retrieveDocument(ctx context.Context, openaiMessages []o
 		ctx,
 		openai.ChatCompletionRequest{
 			Messages: openaiMessages,
-			Tools:    s.tools,
-			Model:    s.model,
+			// Tools:    s.tools,
+			Model: s.model,
 		})
 	if err != nil {
 		return openai.ChatCompletionResponse{}, err
@@ -255,8 +255,8 @@ func (s *OpenAIService) handleFunctionCall(ctx context.Context, openaiMessages [
 		ctx,
 		openai.ChatCompletionRequest{
 			Messages: openaiMessages,
-			Tools:    s.tools,
-			Model:    s.model,
+			// Tools:    s.tools,
+			Model: s.model,
 		},
 	)
 	if err != nil {

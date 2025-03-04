@@ -4,3 +4,5 @@ upload
 test_data
 temp
 .vscode
+*.tar
+*.zip

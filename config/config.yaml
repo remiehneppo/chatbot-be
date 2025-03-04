@@ -1,5 +1,6 @@
-ai_endpoint: "https://api.groq.com/openai/v1"
-model: "deepseek-r1-distill-llama-70b"
+ai_endpoint: "http://localhost:11434/v1/"
+port: 8888
+model: "llama8b"
 upload_dir: "upload"
 weaviate_store_config:
   host: "http://localhost:8080"
@@ -7,6 +8,7 @@ weaviate_store_config:
   module_config:
     text2vec-ollama:
       apiEndpoint: "http://host.docker.internal:11434"
+      model: "mxbai-embed-large"
     generative-ollama:
       apiEndpoint: "http://host.docker.internal:11434"
       model: "llama8b"
