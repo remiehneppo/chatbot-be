@@ -13,7 +13,7 @@ type DocumentHandler struct {
 	uploadDir string
 }
 
-func NewPDFHandler(uploadDir string) *DocumentHandler {
+func NewDocumentHandler(uploadDir string) *DocumentHandler {
 	return &DocumentHandler{
 		uploadDir: uploadDir,
 	}

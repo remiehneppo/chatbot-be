@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
+	"github.com/tieubaoca/chatbot-be/config"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate/auth"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate/filters"
@@ -30,7 +32,6 @@ var (
 			},
 			{Name: "createdAt", DataType: []string{"int"}},
 		},
-		Vectorizer:      "text2vec-transformers",
 		VectorIndexType: "hnsw",
 	}
 )
@@ -40,19 +41,29 @@ type WeaviateStore struct {
 	text2VecModule string
 }
 
-func NewWeaviateStore(scheme, host, apiKey, text2vec string) (*WeaviateStore, error) {
+func NewWeaviateStore(config config.WeaviateStoreConfig) (*WeaviateStore, error) {
+	var scheme string
+	if strings.Contains(config.Host, "https") {
+		scheme = "https"
+	} else {
+		scheme = "http"
+	}
+	host := strings.TrimPrefix(config.Host, scheme+"://")
 	cfg := weaviate.Config{
 		Host:   host,
 		Scheme: scheme,
-		AuthConfig: auth.ApiKey{
-			Value: apiKey,
-		},
-		Headers: map[string]string{
-			"X-Weaviate-Api-Key":     apiKey,
-			"X-Weaviate-Cluster-Url": fmt.Sprintf("%s://%s", scheme, host),
-		},
 	}
-	DOCUMENT_CLASS_OBJECT.Vectorizer = text2vec
+	if config.APIKey != "" {
+		cfg.AuthConfig = auth.ApiKey{
+			Value: config.APIKey,
+		}
+		cfg.Headers = map[string]string{
+			"X-Weaviate-Api-Key":     config.APIKey,
+			"X-Weaviate-Cluster-Url": fmt.Sprintf("%s://%s", scheme, host),
+		}
+	}
+	DOCUMENT_CLASS_OBJECT.Vectorizer = config.Text2Vec
+	DOCUMENT_CLASS_OBJECT.ModuleConfig = config.ModuleConfig
 	client, err := weaviate.NewClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create weaviate client: %v", err)
@@ -72,15 +83,13 @@ func NewWeaviateStore(scheme, host, apiKey, text2vec string) (*WeaviateStore, er
 	}
 	// Create Document class if it doesn't exist
 	if !hasDocumentClass {
-
 		err = client.Schema().ClassCreator().WithClass(DOCUMENT_CLASS_OBJECT).Do(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Document class: %v", err)
 		}
 	}
 	return &WeaviateStore{
-		client:         client,
-		text2VecModule: text2vec,
+		client: client,
 	}, nil
 }
 
@@ -422,4 +431,17 @@ func buildMetadataFilter(metadata Metadata) *filters.WhereBuilder {
 	}
 
 	return whereFilter
+}
+
+func NewOllamaModuleConfig(apiEndpoint, model, embedModel string) map[string]interface{} {
+	return map[string]interface{}{
+		"text2vec-ollama": map[string]interface{}{ // Configure the Ollama embedding integration
+			"apiEndpoint": apiEndpoint, // Allow Weaviate from within a Docker container to contact your Ollama instance
+			"model":       embedModel,  // The model to use
+		},
+		"generative-ollama": map[string]interface{}{ // Configure the Ollama generative integration
+			"apiEndpoint": apiEndpoint, // Allow Weaviate from within a Docker container to contact your Ollama instance
+			"model":       model,       // The model to use
+		},
+	}
 }

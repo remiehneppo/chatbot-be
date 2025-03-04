@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/tieubaoca/chatbot-be/config"
 	"github.com/tieubaoca/chatbot-be/database"
 	"github.com/tieubaoca/chatbot-be/service"
 	"github.com/tieubaoca/chatbot-be/types"
+	"github.com/tieubaoca/chatbot-be/utils"
 )
 
 // batchUploadDocumentCmd represents the batchUploadDocument command
@@ -27,12 +29,14 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		databaseURL, _ := cmd.Flags().GetString("database-url")
-		text2vec := cmd.Flag("text2vec").Value.String()
-		directory, _ := cmd.Flags().GetString("directory")
-		//get array tags
-		tags, _ := cmd.Flags().GetStringArray("tags")
 		reinit, _ := cmd.Flags().GetBool("reinit")
+		directory, _ := cmd.Flags().GetString("directory")
+		tags, _ := cmd.Flags().GetStringArray("tags")
+
+		cfg, err := config.LoadConfig("config/config.yaml")
+		if err != nil {
+			log.Fatalf("Failed to load config: %v", err)
+		}
 
 		pdfService := service.NewPDFService(
 			types.DocumentServiceConfig{
@@ -40,16 +44,7 @@ to quickly create a Cobra application.`,
 				OverlapSize:  100,
 			})
 
-		var httpScheme string
-		if strings.Contains(databaseURL, "https") {
-			httpScheme = "https"
-			databaseURL = strings.Replace(databaseURL, "https://", "", 1)
-		} else {
-			httpScheme = "http"
-			databaseURL = strings.Replace(databaseURL, "http://", "", 1)
-		}
-		log.Println("api key", os.Getenv("WEAVIATE_APIKEY"))
-		weaviateDb, err := database.NewWeaviateStore(httpScheme, databaseURL, os.Getenv("WEAVIATE_APIKEY"), text2vec)
+		weaviateDb, err := database.NewWeaviateStore(cfg.WeaviateStoreConfig)
 		if err != nil {
 			log.Fatalf("Failed to connect to Weaviate database: %v", err)
 		}
@@ -69,10 +64,14 @@ to quickly create a Cobra application.`,
 			if file.IsDir() {
 				continue
 			}
-			filePath := fmt.Sprintf("%s/%s", directory, file.Name())
-			err := upload(filePath, weaviateDb, pdfService, tags)
+			destPath, err := utils.CopyFileWithTimestamp(filepath.Join(directory, file.Name()), cfg.UploadDir)
 			if err != nil {
-				log.Println("Failed to upload document %s: %v", filePath, err)
+				log.Printf("Failed to copy file %s: %v", file, err)
+				continue
+			}
+			err = upload(destPath, weaviateDb, pdfService, tags)
+			if err != nil {
+				log.Printf("Failed to upload document %s: %v", destPath, err)
 			}
 		}
 
@@ -92,11 +91,9 @@ func init() {
 	// is called directly, e.g.:
 	// batchUploadDocumentCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
-	batchUploadDocumentCmd.Flags().String("directory", "", "Path to the dir to upload")
-	batchUploadDocumentCmd.Flags().StringP("database-url", "d", "http://192.168.1.2:8080", "URL for the Weaviate database")
-	batchUploadDocumentCmd.Flags().StringP("text2vec", "t", "text2vec-transformers", "Text2Vec model to use for the AI service")
 	batchUploadDocumentCmd.Flags().BoolP("reinit", "r", false, "Reinitialize the database")
-	batchUploadDocumentCmd.Flags().StringArrayP("tags", "g", []string{}, "Tags for the document")
+	batchUploadDocumentCmd.Flags().StringP("directory", "d", "", "Path to the directory containing PDF files")
+	batchUploadDocumentCmd.Flags().StringSliceP("tags", "t", []string{}, "Tags to add to the document")
 }
 
 func upload(filePath string, weaviateDb *database.WeaviateStore, pdfService *service.PDFService, tags []string) error {

@@ -8,12 +8,13 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tieubaoca/chatbot-be/config"
 	"github.com/tieubaoca/chatbot-be/database"
 	"github.com/tieubaoca/chatbot-be/service"
 	"github.com/tieubaoca/chatbot-be/types"
+	"github.com/tieubaoca/chatbot-be/utils"
 )
 
 // uploadDocumentCmd represents the uploadDocument command
@@ -27,12 +28,22 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		databaseURL, _ := cmd.Flags().GetString("database-url")
-		text2vec := cmd.Flag("text2vec").Value.String()
+		cfg, err := config.LoadConfig("config/config.yaml")
+		if err != nil {
+			log.Fatalf("Failed to load config: %v", err)
+		}
+
 		filePath, _ := cmd.Flags().GetString("file")
-		//get array tags
 		tags, _ := cmd.Flags().GetStringArray("tags")
 		reinit, _ := cmd.Flags().GetBool("reinit")
+		if err := os.MkdirAll(cfg.UploadDir, 0755); err != nil {
+			log.Fatalf("Failed to create upload directory: %v", err)
+		}
+		// Copy file to upload directory with timestamp
+		destPath, err := utils.CopyFileWithTimestamp(filePath, cfg.UploadDir)
+		if err != nil {
+			log.Fatalf("Failed to copy file: %v", err)
+		}
 
 		pdfService := service.NewPDFService(
 			types.DocumentServiceConfig{
@@ -40,16 +51,7 @@ to quickly create a Cobra application.`,
 				OverlapSize:  100,
 			})
 
-		var httpScheme string
-		if strings.Contains(databaseURL, "https") {
-			httpScheme = "https"
-			databaseURL = strings.Replace(databaseURL, "https://", "", 1)
-		} else {
-			httpScheme = "http"
-			databaseURL = strings.Replace(databaseURL, "http://", "", 1)
-		}
-		log.Println("api key", os.Getenv("WEAVIATE_APIKEY"))
-		weaviateDb, err := database.NewWeaviateStore(httpScheme, databaseURL, os.Getenv("WEAVIATE_APIKEY"), text2vec)
+		weaviateDb, err := database.NewWeaviateStore(cfg.WeaviateStoreConfig)
 		if err != nil {
 			log.Fatalf("Failed to connect to Weaviate database: %v", err)
 		}
@@ -65,7 +67,7 @@ to quickly create a Cobra application.`,
 			Title: service.GetFileNameWithoutExt(filePath),
 			Tags:  tags,
 		}
-		go pdfService.ProcessPDF(filePath, req, chunkChan)
+		go pdfService.ProcessPDF(destPath, req, chunkChan)
 		for chunk := range chunkChan {
 			document := &database.Document{
 				Content: chunk.Content,
@@ -103,5 +105,6 @@ func init() {
 	uploadDocumentCmd.Flags().StringP("text2vec", "t", "text2vec-transformers", "Text2Vec model to use for the AI service")
 	uploadDocumentCmd.Flags().BoolP("reinit", "r", false, "Reinitialize the database")
 	uploadDocumentCmd.Flags().StringArrayP("tags", "g", []string{}, "Tags for the document")
-
+	uploadDocumentCmd.Flags().StringP("upload-dir", "u", "upload", "Directory to store uploaded files")
+	uploadDocumentCmd.Flags().StringP("embed-model", "e", "mxbai-embed-large", "Embedding model to use for the AI service")
 }

@@ -106,15 +106,6 @@ func GetFileNameWithoutExt(filepath string) string {
 		base = base[:idx]
 	}
 
-	// Remove timestamp suffix (format: _1234567890)
-	if idx := strings.LastIndex(base, "_"); idx != -1 {
-		// Check if the part after underscore is a number
-		suffix := base[idx+1:]
-		if _, err := strconv.ParseInt(suffix, 10, 64); err == nil {
-			base = base[:idx]
-		}
-	}
-
 	return base
 }
 

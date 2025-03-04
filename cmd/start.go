@@ -6,10 +6,9 @@ package cmd
 import (
 	"log"
 	"net/http"
-	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tieubaoca/chatbot-be/config"
 	"github.com/tieubaoca/chatbot-be/database"
 	"github.com/tieubaoca/chatbot-be/handler"
 	"github.com/tieubaoca/chatbot-be/service"
@@ -22,13 +21,11 @@ var startServerCmd = &cobra.Command{
 	Short: "Start the chat server",
 	Long:  `Starts a server that handles AI chat connections`,
 	Run: func(cmd *cobra.Command, args []string) {
-		port, _ := cmd.Flags().GetString("port")
-		baseURL, _ := cmd.Flags().GetString("base-url")
-		model := cmd.Flag("model").Value.String()
-		databaseURL, _ := cmd.Flags().GetString("database-url")
-		text2vec := cmd.Flag("text2vec").Value.String()
-		apiKey := os.Getenv("OPENAI_API_KEY")
 
+		cfg, err := config.LoadConfig("config/config.yaml")
+		if err != nil {
+			log.Fatalf("Failed to load config: %v", err)
+		}
 		// Initialize services
 
 		pdfService := service.NewPDFService(
@@ -36,30 +33,23 @@ var startServerCmd = &cobra.Command{
 				MaxChunkSize: 1000,
 				OverlapSize:  100,
 			})
-		var httpScheme string
-		if strings.Contains(databaseURL, "https") {
-			httpScheme = "https"
-			databaseURL = strings.Replace(databaseURL, "https://", "", 1)
-		} else {
-			httpScheme = "http"
-			databaseURL = strings.Replace(databaseURL, "http://", "", 1)
-		}
-		weaviateDb, err := database.NewWeaviateStore(httpScheme, databaseURL, os.Getenv("WEAVIATE_APIKEY"), text2vec)
+
+		weaviateDb, err := database.NewWeaviateStore(cfg.WeaviateStoreConfig)
 		if err != nil {
 			log.Fatalf("Failed to connect to Weaviate database: %v", err)
 		}
-		aiService := service.NewOpenAIService(baseURL, apiKey, model, weaviateDb)
+		aiService := service.NewOpenAIService(cfg.AIEndpoint, cfg.OpenAIAPIKey, cfg.Model, weaviateDb)
 		if err := aiService.RegisterRAGFunctionCall(); err != nil {
 			log.Fatalf("Failed to register RAG function call: %v", err)
 		}
 
 		// Initialize handlers
 		corsHandler := handler.NewCorsHandler()
-		uploadService := service.NewFileService("upload", weaviateDb, pdfService)
+		uploadService := service.NewFileService(cfg.UploadDir, weaviateDb, pdfService)
 		uploadHandler := handler.NewUploadHandler(uploadService)
 		chatHandler := handler.NewChatHandler(aiService)
 		searchHandler := handler.NewSearchHandler(weaviateDb)
-		pdfHandler := handler.NewPDFHandler("upload") // Add this line
+		pdfHandler := handler.NewDocumentHandler(cfg.UploadDir) // Add this line
 
 		// Setup routes
 		http.Handle("/api/v1/upload", corsHandler.CorsMiddleware(uploadHandler.UploadDocumentHandler()))
@@ -67,8 +57,8 @@ var startServerCmd = &cobra.Command{
 		http.Handle("/api/v1/documents/search", corsHandler.CorsMiddleware(searchHandler.HandleSearch()))
 		http.Handle("/api/v1/pdf", corsHandler.CorsMiddleware(pdfHandler.ServeDocument())) // Add this line
 
-		log.Printf("Starting WebSocket server on port %s...\n", port)
-		if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Printf("Starting WebSocket server on port %s...\n", cfg.Port)
+		if err := http.ListenAndServe(":"+cfg.Port, nil); err != nil {
 			log.Fatal("ListenAndServe:", err)
 		}
 	},
@@ -76,9 +66,5 @@ var startServerCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(startServerCmd)
-	startServerCmd.Flags().StringP("port", "p", "8888", "Port to run the server on")
-	startServerCmd.Flags().StringP("base-url", "u", "http://localhost:1234/v1", "Base URL for the AI service")
-	startServerCmd.Flags().String("model", "", "Model to use for the AI service")
-	startServerCmd.Flags().StringP("database-url", "d", "http://192.168.1.2:8080", "URL for the Weaviate database")
-	startServerCmd.Flags().StringP("text2vec", "t", "text2vec-transformers", "Text2Vec model to use for the AI service")
+	startServerCmd.Flags().StringP("config", "c", "config/config.yaml", "config file")
 }
