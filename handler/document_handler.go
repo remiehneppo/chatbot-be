@@ -71,7 +71,9 @@ func (h *DocumentHandler) findFileWithTimestamp(requestedName string) (string, e
 		}
 
 		nameWithoutExt := strings.TrimSuffix(name, ".pdf")
-
+		if nameWithoutExt == baseName {
+			return name, nil
+		}
 		// Find last underscore position
 		lastUnderscoreIdx := strings.LastIndex(nameWithoutExt, "_")
 		if lastUnderscoreIdx == -1 {

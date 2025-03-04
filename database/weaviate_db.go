@@ -193,7 +193,7 @@ func (s *WeaviateStore) SearchSimilarWithMetadata(ctx context.Context, queries [
 	}
 	nearVector := s.client.GraphQL().NearTextArgBuilder().
 		WithConcepts(queries).
-		WithCertainty(0.65)
+		WithCertainty(0.7)
 	// Build where filter for metadata
 	where := buildMetadataFilter(metadata)
 

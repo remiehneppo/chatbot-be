@@ -52,7 +52,7 @@ func (s *PDFService) ProcessPDF(filePath string, req types.UploadRequest, c chan
 	if err != nil {
 		close(c)
 	}
-
+	log.Println("Total pages: ", totalPages)
 	var allChunks []types.DocumentChunk
 
 	// Process each page
@@ -213,6 +213,7 @@ func (s *PDFService) createChunks(text string, metadata types.DocumentMetadata) 
 //   - string: Extracted text
 //   - error: Error if extraction fails
 func (s *PDFService) extractTextWithPdftotext(filepath string, pageNumber int) (string, error) {
+	log.Println("Try extracting with pdftotext")
 	pdftotextCmd := exec.Command("pdftotext", "-f", strconv.Itoa(pageNumber), "-l", strconv.Itoa(pageNumber), filepath, "-")
 	var txtOut bytes.Buffer
 	pdftotextCmd.Stdout = &txtOut
@@ -237,6 +238,7 @@ func (s *PDFService) extractTextWithPdftotext(filepath string, pageNumber int) (
 //   - string: Extracted text
 //   - error: Error if extraction fails
 func (s *PDFService) extractTextWithTesseract(pdfPath string, pageNumber int) (string, error) {
+	log.Println("Try extracting with tesseract")
 	//check if temp directory exists
 	if _, err := os.Stat("temp"); os.IsNotExist(err) {
 		os.Mkdir("temp", os.ModePerm)
