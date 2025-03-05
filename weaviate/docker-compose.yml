@@ -24,6 +24,7 @@ services:
       DEFAULT_VECTORIZER_MODULE: 'text2vec-ollama'
       ENABLE_MODULES: 'text2vec-ollama,generative-ollama'
       CLUSTER_HOSTNAME: 'node1'
-
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 volumes:
   weaviate_data:

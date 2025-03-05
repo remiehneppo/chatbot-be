@@ -6,6 +6,17 @@ import (
 	"github.com/spf13/viper"
 )
 
+var OllamaModuleConfig = map[string]interface{}{
+	"text2vec-ollama": map[string]interface{}{
+		"apiEndpoint": "http://host.docker.internal:11434",
+		"model":       "mxbai-embed-large",
+	},
+	"generative-ollama": map[string]interface{}{
+		"apiEndpoint": "http://host.docker.internal:11434",
+		"model":       "llama8b",
+	},
+}
+
 type Config struct {
 	Port                string              `mapstructure:"port"`
 	AIEndpoint          string              `mapstructure:"ai_endpoint"`
@@ -47,6 +58,8 @@ func LoadConfig(configPath string) (*Config, error) {
 	if err := v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
-
+	if config.WeaviateStoreConfig.Text2Vec == "text2vec-ollama" {
+		config.WeaviateStoreConfig.ModuleConfig = OllamaModuleConfig
+	}
 	return &config, nil
 }

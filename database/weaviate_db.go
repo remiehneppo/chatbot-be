@@ -189,6 +189,62 @@ func (s *WeaviateStore) DeleteDocument(ctx context.Context, id string) error {
 		Do(ctx)
 }
 
+func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []string, metadata Metadata, limit int) (string, []Document, error) {
+	fields := []graphql.Field{
+		{Name: "content"},
+		{Name: "title"},
+		{Name: "source"},
+		{Name: "tags"},
+		{Name: "custom", Fields: []graphql.Field{{Name: "page"}}},
+		{Name: "createdAt"},
+		{Name: "_additional", Fields: []graphql.Field{{Name: "distance"}, {Name: "id"}}},
+	}
+	gs := graphql.NewGenerativeSearch().SingleResult(question + "with context {content}")
+	response, err := s.client.GraphQL().Get().
+		WithClassName(DOCUMENT_CLASS).
+		WithFields(
+			fields...,
+		).
+		WithGenerativeSearch(gs).
+		WithNearText((&graphql.NearTextArgumentBuilder{}).
+			WithConcepts(queries)).
+		WithLimit(limit).
+		Do(ctx)
+
+	if err != nil {
+		return "", nil, err
+	}
+	generatedAnswer := ""
+	var docs []Document
+	if data, ok := response.Data["Get"].(map[string]interface{})[DOCUMENT_CLASS].([]interface{}); ok {
+		for _, item := range data {
+			if doc, ok := item.(map[string]interface{}); ok {
+				document := Document{
+					Content: doc["content"].(string),
+					Metadata: Metadata{
+						Title:  doc["title"].(string),
+						Source: doc["source"].(string),
+						Tags:   parseStringArray(doc["tags"]),
+						Custom: parseStringMap(doc["custom"]),
+					},
+					CreatedAt: int64(doc["createdAt"].(float64)),
+				}
+
+				docs = append(docs, document)
+
+				if additional, ok := doc["_additional"].(map[string]interface{}); ok {
+					document.ID = additional["id"].(string)
+					document.Metadata.Custom["distance"] = fmt.Sprintf("%f", additional["distance"].(float64))
+					if generatedAnswer == "" {
+						generatedAnswer = doc["_additional"].(map[string]interface{})["generate"].(map[string]interface{})["groupedResult"].(string)
+					}
+				}
+			}
+		}
+	}
+	return generatedAnswer, docs, nil
+}
+
 // Add new method implementation
 func (s *WeaviateStore) SearchSimilarWithMetadata(ctx context.Context, queries []string, metadata Metadata, limit int) ([]Document, []float32, error) {
 	fields := []graphql.Field{
