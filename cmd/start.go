@@ -4,8 +4,6 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -52,22 +50,6 @@ var startServerCmd = &cobra.Command{
 		chatHandler := handler.NewChatHandler(aiService)
 		searchHandler := handler.NewSearchHandler(weaviateDb)
 		pdfHandler := handler.NewDocumentHandler(cfg.UploadDir) // Add this line
-
-		ans, docs, err := weaviateDb.AskAI(context.Background(), "Con vật trên bìa cuốn Learning Python là gì, nếu không có kết quả hay bảo rằng bạn không  biết", []string{
-			"The animal on the cover of Learning Python",
-		}, database.Metadata{}, 5)
-		if err != nil {
-			log.Fatalf("Failed to ask AI: %v", err)
-		}
-		log.Printf("Answer: %s\n", ans)
-		for _, doc := range docs {
-			docsJson, err := json.Marshal(doc)
-			if err != nil {
-				log.Fatalf("Failed to marshal document: %v", err)
-			}
-			log.Printf("Document: %s\n", docsJson)
-		}
-
 		// Setup routes
 		http.Handle("/api/v1/upload", corsHandler.CorsMiddleware(uploadHandler.UploadDocumentHandler()))
 		http.Handle("/api/v1/chat", corsHandler.CorsMiddleware(chatHandler.HandleChat()))

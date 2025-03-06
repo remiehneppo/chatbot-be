@@ -189,7 +189,7 @@ func (s *WeaviateStore) DeleteDocument(ctx context.Context, id string) error {
 		Do(ctx)
 }
 
-func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []string, metadata Metadata, limit int) (string, []Document, error) {
+func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []string, metadata Metadata, limit int) ([]Document, error) {
 	fields := []graphql.Field{
 		{Name: "content"},
 		{Name: "title"},
@@ -212,9 +212,8 @@ func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []st
 		Do(ctx)
 
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	generatedAnswer := ""
 	var docs []Document
 	if data, ok := response.Data["Get"].(map[string]interface{})[DOCUMENT_CLASS].([]interface{}); ok {
 		for _, item := range data {
@@ -235,14 +234,12 @@ func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []st
 				if additional, ok := doc["_additional"].(map[string]interface{}); ok {
 					document.ID = additional["id"].(string)
 					document.Metadata.Custom["distance"] = fmt.Sprintf("%f", additional["distance"].(float64))
-					if generatedAnswer == "" {
-						generatedAnswer = doc["_additional"].(map[string]interface{})["generate"].(map[string]interface{})["groupedResult"].(string)
-					}
+					document.Metadata.Custom["generative"] = doc["_additional"].(map[string]interface{})["generate"].(map[string]interface{})["singleResult"].(string)
 				}
 			}
 		}
 	}
-	return generatedAnswer, docs, nil
+	return docs, nil
 }
 
 // Add new method implementation
