@@ -54,6 +54,7 @@ var startServerCmd = &cobra.Command{
 		http.Handle("/api/v1/upload", corsHandler.CorsMiddleware(uploadHandler.UploadDocumentHandler()))
 		http.Handle("/api/v1/chat", corsHandler.CorsMiddleware(chatHandler.HandleChat()))
 		http.Handle("/api/v1/documents/search", corsHandler.CorsMiddleware(searchHandler.HandleSearch()))
+		http.Handle("/api/v1/documents/ask-ai", corsHandler.CorsMiddleware(searchHandler.HandleAskAI()))
 		http.Handle("/api/v1/pdf", corsHandler.CorsMiddleware(pdfHandler.ServeDocument())) // Add this line
 
 		log.Printf("Starting WebSocket server on port %s...\n", cfg.Port)

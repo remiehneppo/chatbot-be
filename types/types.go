@@ -1,6 +1,10 @@
 package types
 
-import "context"
+import (
+	"context"
+
+	"github.com/tieubaoca/chatbot-be/database"
+)
 
 const (
 	TypeWebsocketPing       = "ping"
@@ -43,3 +47,18 @@ type FunctionHandler func(ctx context.Context, args []byte) (any, error)
 
 // Handle stream responses
 type StreamHandler func(response string)
+
+type AskAIWithRAGRequest struct {
+	Question      string        `json:"question"`
+	SearchRequest SearchRequest `json:"search_request"`
+}
+
+type SearchRequest struct {
+	Queries []string `json:"queries"`
+	Tags    []string `json:"tags,omitempty"`
+	Limit   int      `json:"limit,omitempty"`
+}
+
+type SearchResponse struct {
+	Documents []database.Document `json:"documents"`
+}

@@ -207,7 +207,7 @@ func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []st
 		).
 		WithGenerativeSearch(gs).
 		WithNearText((&graphql.NearTextArgumentBuilder{}).
-			WithConcepts(queries)).
+			WithConcepts(queries).WithDistance(0.7)).
 		WithLimit(limit).
 		Do(ctx)
 
@@ -234,7 +234,10 @@ func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []st
 				if additional, ok := doc["_additional"].(map[string]interface{}); ok {
 					document.ID = additional["id"].(string)
 					document.Metadata.Custom["distance"] = fmt.Sprintf("%f", additional["distance"].(float64))
-					document.Metadata.Custom["generative"] = doc["_additional"].(map[string]interface{})["generate"].(map[string]interface{})["singleResult"].(string)
+					generate := doc["_additional"].(map[string]interface{})["generate"].(map[string]interface{})
+					if generate["error"] == nil {
+						document.Metadata.Custom["generative"] = generate["singleResult"].(string)
+					}
 				}
 			}
 		}

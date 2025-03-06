@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -10,16 +11,6 @@ import (
 
 type SearchHandler struct {
 	vectorDB *database.WeaviateStore
-}
-
-type SearchRequest struct {
-	Queries []string `json:"queries"`
-	Tags    []string `json:"tags,omitempty"`
-	Limit   int      `json:"limit,omitempty"`
-}
-
-type SearchResponse struct {
-	Documents []database.Document `json:"documents"`
 }
 
 func NewSearchHandler(vectorDB *database.WeaviateStore) *SearchHandler {
@@ -37,7 +28,7 @@ func (h *SearchHandler) HandleSearch() http.Handler {
 			return
 		}
 
-		var req SearchRequest
+		var req types.SearchRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			h.sendError(w, "Invalid request body", http.StatusBadRequest)
 			return
@@ -49,7 +40,33 @@ func (h *SearchHandler) HandleSearch() http.Handler {
 		}
 
 		// Search documents
-		docs, _, err := h.vectorDB.SearchSimilar(r.Context(), req.Queries, req.Limit)
+		docs, _, err := h.vectorDB.SearchSimilarWithMetadata(r.Context(), req.Queries, database.Metadata{Tags: req.Tags}, req.Limit)
+		if err != nil {
+			h.sendError(w, "Search failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Send response
+		h.sendSuccess(w, docs)
+	})
+}
+
+func (h *SearchHandler) HandleAskAI() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.Method != http.MethodPost {
+			h.sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req types.AskAIWithRAGRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			h.sendError(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// Search documents
+		docs, err := h.vectorDB.AskAI(context.Background(), req.Question, req.SearchRequest.Queries, database.Metadata{Tags: req.SearchRequest.Tags}, req.SearchRequest.Limit)
 		if err != nil {
 			h.sendError(w, "Search failed: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -69,7 +86,7 @@ func (h *SearchHandler) sendError(w http.ResponseWriter, message string, status 
 
 func (h *SearchHandler) sendSuccess(w http.ResponseWriter, docs []database.Document) {
 	w.WriteHeader(http.StatusOK)
-	searchRes := SearchResponse{
+	searchRes := types.SearchResponse{
 		Documents: docs,
 	}
 	resData := types.DataResponse{
