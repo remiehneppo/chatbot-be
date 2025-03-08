@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tieubaoca/chatbot-be/config"
+	"github.com/tieubaoca/chatbot-be/types"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate/auth"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate/filters"
@@ -106,7 +107,35 @@ func (s *WeaviateStore) ReInit() error {
 	return nil
 }
 
-func (s *WeaviateStore) UpsertDocument(ctx context.Context, doc *Document, embedding []float32) error {
+func (s *WeaviateStore) UpsertDocument(ctx context.Context, doc *types.Document, embedding []float32) error {
+
+	// First check for exact content match
+	fields := []graphql.Field{
+		{Name: "content"},
+		{Name: "_additional", Fields: []graphql.Field{{Name: "distance"}}},
+	}
+
+	whereFilter := filters.Where().
+		WithPath([]string{"content"}).
+		WithOperator(filters.Equal).
+		WithValueString(doc.Content)
+
+	result, err := s.client.GraphQL().Get().
+		WithClassName(DOCUMENT_CLASS).
+		WithFields(fields...).
+		WithWhere(whereFilter).
+		Do(ctx)
+
+	if err != nil {
+		return fmt.Errorf("failed to check for duplicates: %v", err)
+	}
+
+	// Check if we found any exact matches
+	if data, ok := result.Data["Get"].(map[string]interface{})[DOCUMENT_CLASS].([]interface{}); ok && len(data) > 0 {
+		log.Printf("Skipping duplicate document with content: %s...", truncateString(doc.Content, 50))
+		return nil
+	}
+
 	className := DOCUMENT_CLASS
 	properties := map[string]interface{}{
 		"content":   doc.Content,
@@ -125,15 +154,15 @@ func (s *WeaviateStore) UpsertDocument(ctx context.Context, doc *Document, embed
 		creator = creator.WithVector(embedding)
 	}
 
-	result, err := creator.Do(ctx)
+	upsertResult, err := creator.Do(ctx)
 	if err != nil {
 		return err
 	}
-	log.Println("UpsertDocument result:", result.Object.ID)
+	log.Println("UpsertDocument result:", upsertResult.Object.ID)
 	return nil
 }
 
-func (s *WeaviateStore) BatchInsertDocuments(ctx context.Context, docs []Document, embeddings [][]float32) error {
+func (s *WeaviateStore) BatchInsertDocuments(ctx context.Context, docs []types.Document, embeddings [][]float32) error {
 	total := len(docs)
 	for i := 0; i < total; i += BATCH_SIZE {
 		end := i + BATCH_SIZE
@@ -189,7 +218,7 @@ func (s *WeaviateStore) DeleteDocument(ctx context.Context, id string) error {
 		Do(ctx)
 }
 
-func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []string, metadata Metadata, limit int) ([]Document, error) {
+func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []string, metadata types.Metadata, limit int) ([]types.Document, error) {
 	fields := []graphql.Field{
 		{Name: "content"},
 		{Name: "title"},
@@ -214,13 +243,13 @@ func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []st
 	if err != nil {
 		return nil, err
 	}
-	var docs []Document
+	var docs []types.Document
 	if data, ok := response.Data["Get"].(map[string]interface{})[DOCUMENT_CLASS].([]interface{}); ok {
 		for _, item := range data {
 			if doc, ok := item.(map[string]interface{}); ok {
-				document := Document{
+				document := types.Document{
 					Content: doc["content"].(string),
-					Metadata: Metadata{
+					Metadata: types.Metadata{
 						Title:  doc["title"].(string),
 						Source: doc["source"].(string),
 						Tags:   parseStringArray(doc["tags"]),
@@ -246,7 +275,7 @@ func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []st
 }
 
 // Add new method implementation
-func (s *WeaviateStore) SearchSimilarWithMetadata(ctx context.Context, queries []string, metadata Metadata, limit int) ([]Document, []float32, error) {
+func (s *WeaviateStore) SearchSimilarWithMetadata(ctx context.Context, queries []string, metadata types.Metadata, limit int) ([]types.Document, []float32, error) {
 	fields := []graphql.Field{
 		{Name: "content"},
 		{Name: "title"},
@@ -284,15 +313,15 @@ func (s *WeaviateStore) SearchSimilarWithMetadata(ctx context.Context, queries [
 	}
 
 	// Parse results
-	var docs []Document
+	var docs []types.Document
 	var distances []float32
 
 	if data, ok := result.Data["Get"].(map[string]interface{})[DOCUMENT_CLASS].([]interface{}); ok {
 		for _, item := range data {
 			if doc, ok := item.(map[string]interface{}); ok {
-				document := Document{
+				document := types.Document{
 					Content: doc["content"].(string),
-					Metadata: Metadata{
+					Metadata: types.Metadata{
 						Title:  doc["title"].(string),
 						Source: doc["source"].(string),
 						Tags:   parseStringArray(doc["tags"]),
@@ -316,12 +345,12 @@ func (s *WeaviateStore) SearchSimilarWithMetadata(ctx context.Context, queries [
 }
 
 // Update SearchSimilar to use common search structure
-func (s *WeaviateStore) SearchSimilar(ctx context.Context, queries []string, limit int) ([]Document, []float32, error) {
+func (s *WeaviateStore) SearchSimilar(ctx context.Context, queries []string, limit int) ([]types.Document, []float32, error) {
 	// Call SearchSimilarWithMetadata with empty metadata
-	return s.SearchSimilarWithMetadata(ctx, queries, Metadata{}, limit)
+	return s.SearchSimilarWithMetadata(ctx, queries, types.Metadata{}, limit)
 }
 
-func (s *WeaviateStore) SearchByMetadata(ctx context.Context, metadata Metadata, limit int) ([]Document, error) {
+func (s *WeaviateStore) SearchByMetadata(ctx context.Context, metadata types.Metadata, limit int) ([]types.Document, error) {
 	fields := []graphql.Field{
 		{Name: "content"},
 		{Name: "title"},
@@ -352,14 +381,14 @@ func (s *WeaviateStore) SearchByMetadata(ctx context.Context, metadata Metadata,
 		return nil, fmt.Errorf("search failed: %v", result.Errors)
 	}
 
-	var docs []Document
+	var docs []types.Document
 	if data, ok := result.Data["Get"].(map[string]interface{})[DOCUMENT_CLASS].([]interface{}); ok {
 		for _, item := range data {
 			if doc, ok := item.(map[string]interface{}); ok {
-				document := Document{
+				document := types.Document{
 					ID:      doc["id"].(string),
 					Content: doc["content"].(string),
-					Metadata: Metadata{
+					Metadata: types.Metadata{
 						Title:  doc["title"].(string),
 						Source: doc["source"].(string),
 						Tags:   parseStringArray(doc["tags"]),
@@ -435,7 +464,7 @@ func parseStringMap(v interface{}) map[string]string {
 	return result
 }
 
-func buildMetadataFilter(metadata Metadata) *filters.WhereBuilder {
+func buildMetadataFilter(metadata types.Metadata) *filters.WhereBuilder {
 
 	var whereFilter *filters.WhereBuilder
 
@@ -500,4 +529,12 @@ func NewOllamaModuleConfig(apiEndpoint, model, embedModel string) map[string]int
 			"model":       model,       // The model to use
 		},
 	}
+}
+
+// Helper function to truncate long strings for logging
+func truncateString(s string, maxLength int) string {
+	if len(s) <= maxLength {
+		return s
+	}
+	return s[:maxLength] + "..."
 }

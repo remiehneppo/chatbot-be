@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tieubaoca/chatbot-be/config"
@@ -38,11 +39,7 @@ to quickly create a Cobra application.`,
 			log.Fatalf("Failed to load config: %v", err)
 		}
 
-		pdfService := service.NewPDFService(
-			types.DocumentServiceConfig{
-				MaxChunkSize: 5000,
-				OverlapSize:  100,
-			})
+		pdfService := service.NewPDFService(service.DefaultDocumentServiceConfig)
 
 		weaviateDb, err := database.NewWeaviateStore(cfg.WeaviateStoreConfig)
 		if err != nil {
@@ -102,18 +99,18 @@ func upload(filePath string, weaviateDb *database.WeaviateStore, pdfService *ser
 		Title: service.GetFileNameWithoutExt(filePath),
 		Tags:  tags,
 	}
-	defer close(chunkChan)
 	go pdfService.ProcessPDF(filePath, req, chunkChan)
 	for chunk := range chunkChan {
-		document := &database.Document{
+		document := &types.Document{
 			Content: chunk.Content,
-			Metadata: database.Metadata{
+			Metadata: types.Metadata{
 				Title: chunk.Metadata.Title,
 				Tags:  tags,
 				Custom: map[string]string{
 					"page": fmt.Sprintf("%d", chunk.Metadata.PageNum),
 				},
 			},
+			CreatedAt: time.Now().Unix(),
 		}
 		err := weaviateDb.UpsertDocument(context.Background(), document, nil)
 		if err != nil {

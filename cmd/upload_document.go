@@ -4,10 +4,10 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tieubaoca/chatbot-be/config"
@@ -45,11 +45,7 @@ to quickly create a Cobra application.`,
 			log.Fatalf("Failed to copy file: %v", err)
 		}
 
-		pdfService := service.NewPDFService(
-			types.DocumentServiceConfig{
-				MaxChunkSize: 5000,
-				OverlapSize:  100,
-			})
+		pdfService := service.NewPDFService(service.DefaultDocumentServiceConfig)
 
 		weaviateDb, err := database.NewWeaviateStore(cfg.WeaviateStoreConfig)
 		if err != nil {
@@ -68,22 +64,32 @@ to quickly create a Cobra application.`,
 			Tags:  tags,
 		}
 		go pdfService.ProcessPDF(destPath, req, chunkChan)
+		testFile, err := os.Create("test.txt")
+		if err != nil {
+			log.Fatalf("Failed to create test file: %v", err)
+		}
 		for chunk := range chunkChan {
-			document := &database.Document{
+			document := &types.Document{
 				Content: chunk.Content,
-				Metadata: database.Metadata{
+				Metadata: types.Metadata{
 					Title: chunk.Metadata.Title,
 					Tags:  tags,
 					Custom: map[string]string{
 						"page": fmt.Sprintf("%d", chunk.Metadata.PageNum),
 					},
 				},
+				CreatedAt: time.Now().Unix(),
 			}
-			err = weaviateDb.UpsertDocument(context.Background(), document, nil)
-			if err != nil {
-				log.Fatalf("Failed to upload document to Weaviate database: %v", err)
-			}
-			fmt.Println("Uploaded document page", chunk.Metadata.PageNum)
+			// test to write data to a text file for test
+
+			defer testFile.Close()
+			testFile.WriteString(document.Content)
+			// end test
+			// err = weaviateDb.UpsertDocument(context.Background(), document, nil)
+			// if err != nil {
+			// 	log.Fatalf("Failed to upload document to Weaviate database: %v", err)
+			// }
+			// fmt.Println("Uploaded document page", chunk.Metadata.PageNum)
 		}
 	},
 }

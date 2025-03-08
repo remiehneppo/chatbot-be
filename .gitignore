@@ -6,3 +6,5 @@ temp
 .vscode
 *.tar
 *.zip
+/mongo/data
+*/weaviate_data

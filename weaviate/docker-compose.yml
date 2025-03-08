@@ -1,9 +1,6 @@
-version: '3.8'
 services:
   weaviate:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    image: semitechnologies/weaviate:1.28.2
     command:
       - --host
       - 0.0.0.0
@@ -15,7 +12,7 @@ services:
       - 8080:8080
       - 50051:50051
     volumes:
-      - weaviate_data:/var/lib/weaviate
+      - ./weaviate_data:/var/lib/weaviate
     restart: on-failure:0
     environment:
       QUERY_DEFAULTS_LIMIT: 25

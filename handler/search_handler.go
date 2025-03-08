@@ -40,7 +40,7 @@ func (h *SearchHandler) HandleSearch() http.Handler {
 		}
 
 		// Search documents
-		docs, _, err := h.vectorDB.SearchSimilarWithMetadata(r.Context(), req.Queries, database.Metadata{Tags: req.Tags}, req.Limit)
+		docs, _, err := h.vectorDB.SearchSimilarWithMetadata(r.Context(), req.Queries, types.Metadata{Tags: req.Tags}, req.Limit)
 		if err != nil {
 			h.sendError(w, "Search failed: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -66,7 +66,7 @@ func (h *SearchHandler) HandleAskAI() http.Handler {
 		}
 
 		// Search documents
-		docs, err := h.vectorDB.AskAI(context.Background(), req.Question, req.SearchRequest.Queries, database.Metadata{Tags: req.SearchRequest.Tags}, req.SearchRequest.Limit)
+		docs, err := h.vectorDB.AskAI(context.Background(), req.Question, req.SearchRequest.Queries, types.Metadata{Tags: req.SearchRequest.Tags}, req.SearchRequest.Limit)
 		if err != nil {
 			h.sendError(w, "Search failed: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -84,7 +84,7 @@ func (h *SearchHandler) sendError(w http.ResponseWriter, message string, status 
 	})
 }
 
-func (h *SearchHandler) sendSuccess(w http.ResponseWriter, docs []database.Document) {
+func (h *SearchHandler) sendSuccess(w http.ResponseWriter, docs []types.Document) {
 	w.WriteHeader(http.StatusOK)
 	searchRes := types.SearchResponse{
 		Documents: docs,

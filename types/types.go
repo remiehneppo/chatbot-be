@@ -2,8 +2,6 @@ package types
 
 import (
 	"context"
-
-	"github.com/tieubaoca/chatbot-be/database"
 )
 
 const (
@@ -60,5 +58,5 @@ type SearchRequest struct {
 }
 
 type SearchResponse struct {
-	Documents []database.Document `json:"documents"`
+	Documents []Document `json:"documents"`
 }

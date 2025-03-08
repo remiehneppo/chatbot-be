@@ -21,16 +21,15 @@ type PDFService struct {
 	overlapSize  int // Size of overlap between chunks
 }
 
+var DefaultDocumentServiceConfig = types.DocumentServiceConfig{
+	MaxChunkSize: 512,
+	OverlapSize:  64,
+}
+
 // PDFChunk represents a processed chunk of PDF text with metadata
 
 // NewPDFService creates a new PDF service with configurable chunk sizes
 func NewPDFService(config types.DocumentServiceConfig) *PDFService {
-	if config.MaxChunkSize == 0 {
-		config.MaxChunkSize = 1000
-	}
-	if config.OverlapSize == 0 {
-		config.OverlapSize = 100
-	}
 
 	return &PDFService{
 		maxChunkSize: config.MaxChunkSize,
@@ -50,11 +49,10 @@ func (s *PDFService) ProcessPDF(filePath string, req types.UploadRequest, c chan
 	// Get total pages
 	totalPages, err := getNumPages(filePath)
 	if err != nil {
-		close(c)
+		return err
 	}
 	log.Println("Total pages: ", totalPages)
-	var allChunks []types.DocumentChunk
-
+	lastText := ""
 	// Process each page
 	for pageNum := 1; pageNum <= totalPages; pageNum++ {
 		// Extract text from current page
@@ -65,8 +63,7 @@ func (s *PDFService) ProcessPDF(filePath string, req types.UploadRequest, c chan
 		}
 
 		// Clean text
-		text = strings.ReplaceAll(text, "\r", "")
-		text = strings.TrimSpace(text)
+		text = lastText + " " + s.cleanText(text)
 
 		// Skip empty text
 		if text == "" {
@@ -81,16 +78,22 @@ func (s *PDFService) ProcessPDF(filePath string, req types.UploadRequest, c chan
 			TotalPages: totalPages,
 		}
 		// Create chunks for this page
-		pageChunks := s.createChunks(text, metadata)
-		allChunks = append(allChunks, pageChunks...)
-		for _, chunk := range pageChunks {
-			c <- chunk
+		pageChunks, newLastText := s.createChunks(text, metadata)
+		if len(pageChunks) == 0 {
+			lastText = newLastText
+			continue
 		}
-	}
+		if len(newLastText) > 0 {
+			lastText = newLastText
+			for i := 0; i < len(pageChunks)-1; i++ {
+				c <- pageChunks[i]
+			}
+		} else {
+			for _, chunk := range pageChunks {
+				c <- chunk
+			}
+		}
 
-	// Return error if no text was extracted from any page
-	if len(allChunks) == 0 {
-		return fmt.Errorf("no text could be extracted from any page of the PDF")
 	}
 
 	return nil
@@ -111,28 +114,31 @@ func GetFileNameWithoutExt(filepath string) string {
 
 // extractText attempts to extract text from a specific page using multiple methods
 func (s *PDFService) extractText(filePath string, pageNumber int) (string, error) {
-	text, err := s.extractTextWithPdftotext(filePath, pageNumber)
-	if err != nil || text == "" {
-		text, err = s.extractTextWithTesseract(filePath, pageNumber)
-		if err != nil {
-			return "", fmt.Errorf("failed to extract text: %w", err)
-		}
+	// text, err := s.extractTextWithPdftotext(filePath, pageNumber)
+	// if err != nil || text == "" {
+	text, err := s.extractTextWithTesseract(filePath, pageNumber)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract text: %w", err)
 	}
+	// }
 	return text, nil
 }
 
 // createChunks splits text into overlapping chunks with proper sentence boundaries
-func (s *PDFService) createChunks(text string, metadata types.DocumentMetadata) []types.DocumentChunk {
+func (s *PDFService) createChunks(text string, metadata types.DocumentMetadata) ([]types.DocumentChunk, string) {
 	var chunks []types.DocumentChunk
 	textLen := len(text)
-
+	lastText := ""
 	// Return early if text fits in one chunk
 	if textLen <= s.maxChunkSize {
-		return []types.DocumentChunk{{
-			Content:  text,
-			Page:     metadata.PageNum,
-			Metadata: metadata,
-		}}
+		lastText = text
+		return []types.DocumentChunk{
+			{
+				Content:  text,
+				Page:     metadata.PageNum,
+				Metadata: metadata,
+			},
+		}, lastText
 	}
 
 	currentPos := 0
@@ -148,6 +154,7 @@ func (s *PDFService) createChunks(text string, metadata types.DocumentMetadata) 
 					Page:     metadata.PageNum,
 					Metadata: metadata,
 				})
+				lastText = chunk
 			}
 			break
 		}
@@ -192,7 +199,7 @@ func (s *PDFService) createChunks(text string, metadata types.DocumentMetadata) 
 		}
 	}
 
-	return chunks
+	return chunks, lastText
 }
 
 // extractTextWithPdftotext extracts text using pdftotext utility
@@ -205,7 +212,10 @@ func (s *PDFService) createChunks(text string, metadata types.DocumentMetadata) 
 //   - error: Error if extraction fails
 func (s *PDFService) extractTextWithPdftotext(filepath string, pageNumber int) (string, error) {
 	log.Println("Try extracting with pdftotext")
-	pdftotextCmd := exec.Command("pdftotext", "-f", strconv.Itoa(pageNumber), "-l", strconv.Itoa(pageNumber), filepath, "-")
+	pdftotextCmd := exec.Command("pdftotext", "-f", strconv.Itoa(pageNumber),
+		"-l", strconv.Itoa(pageNumber),
+		"-enc", "UTF-8", "-nopgbrk",
+		filepath, "-")
 	var txtOut bytes.Buffer
 	pdftotextCmd.Stdout = &txtOut
 
@@ -254,7 +264,12 @@ func (s *PDFService) extractTextWithTesseract(pdfPath string, pageNumber int) (s
 		return "", fmt.Errorf("failed to read image files: %w", err)
 	}
 	imageFile := file[0]
-	ocrCmd := exec.Command("tesseract", imageFile, "stdout", "-l", "vie")
+	ocrCmd := exec.Command("tesseract",
+		imageFile,
+		"stdout",
+		"-l", "vie+rus", // Add both language packs
+		"--oem", "1", // Use LSTM OCR Engine Mode
+		"--psm", "3") // Auto-detect page segmentation mode
 	var ocrOut bytes.Buffer
 	ocrCmd.Stdout = &ocrOut
 	if err := ocrCmd.Run(); err != nil {
@@ -294,4 +309,29 @@ func getNumPages(pdfPath string) (int, error) {
 	}
 
 	return 0, fmt.Errorf("unable to determine page count from pdfinfo")
+}
+
+func (s *PDFService) cleanText(text string) string {
+
+	replacements := map[string]string{
+		"\u0000": "",   // Null character
+		"\ufffd": "",   // Unicode replacement character
+		"\u001b": "",   // Escape character
+		"\r":     "",   // Carriage return
+		"\f":     "\n", // Form feed to newline
+		"  ":     " ",  // Multiple spaces to single space
+		"":      "",   // Apple logo
+		"‡":      "",   // Double dagger
+		"†":      "",   // Dagger
+	}
+	// Apply replacements
+	cleaned := text
+	for old, new := range replacements {
+		cleaned = strings.ReplaceAll(cleaned, old, new)
+	}
+
+	// Trim leading/trailing whitespace
+	cleaned = strings.TrimSpace(cleaned)
+
+	return cleaned
 }
