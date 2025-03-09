@@ -109,32 +109,7 @@ func (s *WeaviateStore) ReInit() error {
 
 func (s *WeaviateStore) UpsertDocument(ctx context.Context, doc *types.Document, embedding []float32) error {
 
-	// First check for exact content match
-	fields := []graphql.Field{
-		{Name: "content"},
-		{Name: "_additional", Fields: []graphql.Field{{Name: "distance"}}},
-	}
-
-	whereFilter := filters.Where().
-		WithPath([]string{"content"}).
-		WithOperator(filters.Equal).
-		WithValueString(doc.Content)
-
-	result, err := s.client.GraphQL().Get().
-		WithClassName(DOCUMENT_CLASS).
-		WithFields(fields...).
-		WithWhere(whereFilter).
-		Do(ctx)
-
-	if err != nil {
-		return fmt.Errorf("failed to check for duplicates: %v", err)
-	}
-
 	// Check if we found any exact matches
-	if data, ok := result.Data["Get"].(map[string]interface{})[DOCUMENT_CLASS].([]interface{}); ok && len(data) > 0 {
-		log.Printf("Skipping duplicate document with content: %s...", truncateString(doc.Content, 50))
-		return nil
-	}
 
 	className := DOCUMENT_CLASS
 	properties := map[string]interface{}{

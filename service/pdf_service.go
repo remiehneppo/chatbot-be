@@ -15,6 +15,8 @@ import (
 	"github.com/tieubaoca/chatbot-be/types"
 )
 
+var tesseditCharWhitelist = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,?!()[]{}<>:;\"'"
+
 // PDFService handles PDF processing operations
 type PDFService struct {
 	maxChunkSize int // Maximum size of each text chunk
@@ -22,8 +24,8 @@ type PDFService struct {
 }
 
 var DefaultDocumentServiceConfig = types.DocumentServiceConfig{
-	MaxChunkSize: 512,
-	OverlapSize:  64,
+	MaxChunkSize: 3072,
+	OverlapSize:  128,
 }
 
 // PDFChunk represents a processed chunk of PDF text with metadata
@@ -114,13 +116,13 @@ func GetFileNameWithoutExt(filepath string) string {
 
 // extractText attempts to extract text from a specific page using multiple methods
 func (s *PDFService) extractText(filePath string, pageNumber int) (string, error) {
-	// text, err := s.extractTextWithPdftotext(filePath, pageNumber)
-	// if err != nil || text == "" {
-	text, err := s.extractTextWithTesseract(filePath, pageNumber)
-	if err != nil {
-		return "", fmt.Errorf("failed to extract text: %w", err)
+	text, err := s.extractTextWithPdftotext(filePath, pageNumber)
+	if err != nil || text == "" {
+		text, err = s.extractTextWithTesseract(filePath, pageNumber)
+		if err != nil {
+			return "", fmt.Errorf("failed to extract text: %w", err)
+		}
 	}
-	// }
 	return text, nil
 }
 
@@ -267,9 +269,11 @@ func (s *PDFService) extractTextWithTesseract(pdfPath string, pageNumber int) (s
 	ocrCmd := exec.Command("tesseract",
 		imageFile,
 		"stdout",
-		"-l", "vie+rus", // Add both language packs
-		"--oem", "1", // Use LSTM OCR Engine Mode
-		"--psm", "3") // Auto-detect page segmentation mode
+		"-l", "vie+rus+eng", // Add both language packs
+		"--oem", "3", // Use LSTM OCR Engine Mode
+		"--psm", "3",
+	// "c", fmt.Sprintf("tessedit_char_whitelist=%s", tesseditCharWhitelist),
+	) // Auto-detect page segmentation mode
 	var ocrOut bytes.Buffer
 	ocrCmd.Stdout = &ocrOut
 	if err := ocrCmd.Run(); err != nil {

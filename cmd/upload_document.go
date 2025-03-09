@@ -4,6 +4,7 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -64,7 +65,7 @@ to quickly create a Cobra application.`,
 			Tags:  tags,
 		}
 		go pdfService.ProcessPDF(destPath, req, chunkChan)
-		testFile, err := os.Create("test.txt")
+		// testFile, err := os.Create("test.txt")
 		if err != nil {
 			log.Fatalf("Failed to create test file: %v", err)
 		}
@@ -82,14 +83,14 @@ to quickly create a Cobra application.`,
 			}
 			// test to write data to a text file for test
 
-			defer testFile.Close()
-			testFile.WriteString(document.Content)
+			// defer testFile.Close()
+			// testFile.WriteString(document.Content)
 			// end test
-			// err = weaviateDb.UpsertDocument(context.Background(), document, nil)
-			// if err != nil {
-			// 	log.Fatalf("Failed to upload document to Weaviate database: %v", err)
-			// }
-			// fmt.Println("Uploaded document page", chunk.Metadata.PageNum)
+			err = weaviateDb.UpsertDocument(context.Background(), document, nil)
+			if err != nil {
+				log.Fatalf("Failed to upload document to Weaviate database: %v", err)
+			}
+			fmt.Println("Uploaded document page", chunk.Metadata.PageNum)
 		}
 	},
 }

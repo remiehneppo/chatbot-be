@@ -4,7 +4,7 @@ model: "llama8b"
 upload_dir: "upload"
 weaviate_store_config:
   host: "http://localhost:8080"
-  text2vec: "text2vec-ollama"
+  text2vec: "text2vec-transformers"
   module_config:
     text2vec-ollama:
       apiEndpoint: "http://host.docker.internal:11434"
