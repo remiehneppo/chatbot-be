@@ -203,7 +203,13 @@ func (s *WeaviateStore) AskAI(ctx context.Context, question string, queries []st
 		{Name: "createdAt"},
 		{Name: "_additional", Fields: []graphql.Field{{Name: "distance"}, {Name: "id"}}},
 	}
-	gs := graphql.NewGenerativeSearch().SingleResult(question + "with context {content}")
+	gs := graphql.NewGenerativeSearch().SingleResult(`You are an intelligent AI assistant. Below is relevant information retrieved from a RAG system:
+[CONTEXT]
+Title: {title}  
+Content: {content}  
+[/CONTEXT]  
+Based on the information above, answer the user's question accurately and concisely. If the provided information is not sufficient to answer, state that you don't have enough data instead of guessing. You answer by Vietnamese.
+User's question: ` + question)
 	response, err := s.client.GraphQL().Get().
 		WithClassName(DOCUMENT_CLASS).
 		WithFields(

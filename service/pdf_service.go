@@ -24,7 +24,7 @@ type PDFService struct {
 }
 
 var DefaultDocumentServiceConfig = types.DocumentServiceConfig{
-	MaxChunkSize: 3072,
+	MaxChunkSize: 1024,
 	OverlapSize:  128,
 }
 
