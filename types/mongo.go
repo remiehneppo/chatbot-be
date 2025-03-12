@@ -2,7 +2,6 @@ package types
 
 const (
 	USER_ROLE_ADMIN = "admin"
-	USER_ROLE_USER  = "user"
 )
 const (
 	USER_WORKSPACE_ROLE_EXECUTIVE = "executive"
@@ -36,13 +35,19 @@ const (
 	DepartmentMaterial       = "DepartmentMaterial"
 )
 
+type Admin struct {
+	ID       string `json:"id" bson:"_id,omitempty"`
+	Username string `json:"username" bson:"username"`
+	Password string `json:"password" bson:"password"`
+	Role     string `json:"role" bson:"role"`
+}
+
 type User struct {
 	ID              string `json:"id" bson:"_id,omitempty"`
 	Username        string `json:"username" bson:"username"`
 	Password        string `json:"password" bson:"password"`
 	FullName        string `json:"full_name" bson:"full_name"`
 	ManagementLevel int    `json:"management_level" bson:"management_level"`
-	Role            string `json:"role" bson:"role"`
 	WorkspaceRole   string `json:"workspace_role" bson:"workspace_role"`
 	Workspace       string `json:"workspace" bson:"workspace"`
 	CreateAt        int64  `json:"created_at" bson:"created_at"`

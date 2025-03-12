@@ -11,6 +11,7 @@ import (
 	"github.com/tieubaoca/chatbot-be/config"
 	"github.com/tieubaoca/chatbot-be/database"
 	"github.com/tieubaoca/chatbot-be/handler"
+	"github.com/tieubaoca/chatbot-be/middleware"
 	"github.com/tieubaoca/chatbot-be/service"
 	"github.com/tieubaoca/chatbot-be/types"
 )
@@ -51,11 +52,19 @@ var startServerCmd = &cobra.Command{
 		searchHandler := handler.NewSearchHandler(weaviateDb)
 		pdfHandler := handler.NewDocumentHandler(cfg.UploadDir) // Add this line
 		// Setup routes
-		http.Handle("/api/v1/upload", corsHandler.CorsMiddleware(uploadHandler.UploadDocumentHandler()))
-		http.Handle("/api/v1/chat", corsHandler.CorsMiddleware(chatHandler.HandleChat()))
-		http.Handle("/api/v1/documents/search", corsHandler.CorsMiddleware(searchHandler.HandleSearch()))
-		http.Handle("/api/v1/documents/ask-ai", corsHandler.CorsMiddleware(searchHandler.HandleAskAI()))
-		http.Handle("/api/v1/pdf", corsHandler.CorsMiddleware(pdfHandler.ServeDocument())) // Add this line
+		// user request
+		userMux := http.NewServeMux()
+		userMux.Handle("/chat", corsHandler.CorsMiddleware(chatHandler.HandleChat()))
+		userMux.Handle("/documents/search", corsHandler.CorsMiddleware(searchHandler.HandleSearch()))
+		userMux.Handle("/documents/ask-ai", corsHandler.CorsMiddleware(searchHandler.HandleAskAI()))
+		userMux.Handle("/pdf", corsHandler.CorsMiddleware(pdfHandler.ServeDocument())) // Add this line
+
+		// admin request
+		adminMux := http.NewServeMux()
+		adminMux.Handle("/upload", corsHandler.CorsMiddleware(uploadHandler.UploadDocumentHandler()))
+
+		http.Handle("/api/v1", middleware.AuthMiddleware(userMux))
+		http.Handle("/admin/api/v1", middleware.AdminAuthMiddleware(adminMux))
 
 		log.Printf("Starting WebSocket server on port %s...\n", cfg.Port)
 		if err := http.ListenAndServe(":"+cfg.Port, nil); err != nil {
