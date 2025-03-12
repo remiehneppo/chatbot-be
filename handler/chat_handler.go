@@ -38,8 +38,13 @@ func (h *ChatHandler) HandleChat() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(types.ChatResponse{
-			Message: response,
-		})
+		json.NewEncoder(w).Encode(
+			types.DataResponse{
+				Status: true,
+				Data: types.ChatResponse{
+					Message: response,
+				},
+			},
+		)
 	}
 }

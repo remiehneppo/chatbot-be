@@ -88,8 +88,8 @@ var startServerCmd = &cobra.Command{
 		adminMux.Handle("/users/delete", userMngHandler.HandleDeleteUser())
 
 		mux := http.NewServeMux()
-		mux.Handle("/api/v1/login/", loginHandler.HandleLogin())
 		mux.Handle("/api/v1/", middleware.AuthMiddleware(userMux))
+		mux.Handle("/api/v1/login", loginHandler.HandleLogin())
 		mux.Handle("/admin/api/v1/", middleware.AdminAuthMiddleware(adminMux))
 
 		http.Handle("/", corsHandler.CorsMiddleware(mux))
