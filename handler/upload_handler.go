@@ -82,7 +82,7 @@ func (h *UploadHandler) sendError(w http.ResponseWriter, message string, status 
 	w.WriteHeader(status)
 
 	res := types.DataResponse{
-		Status:  "error",
+		Status:  false,
 		Message: message,
 	}
 	json.NewEncoder(w).Encode(res)
@@ -91,7 +91,7 @@ func (h *UploadHandler) sendError(w http.ResponseWriter, message string, status 
 func (h *UploadHandler) sendSuccess(w http.ResponseWriter, originalName string) {
 	w.WriteHeader(http.StatusOK)
 	res := types.DataResponse{
-		Status: "success",
+		Status: true,
 		Data: types.UploadResponse{
 			OriginalName: originalName,
 		},

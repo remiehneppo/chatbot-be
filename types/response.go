@@ -1,9 +1,16 @@
 package types
 
 type DataResponse struct {
-	Status  string      `json:"status"`
+	Status  bool        `json:"status"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
+}
+
+type PaginateResponse struct {
+	Total    int64       `json:"total"`
+	Elements interface{} `json:"elements"`
+	Page     int64       `json:"page"`
+	Limit    int64       `json:"limit"`
 }
 
 type UploadResponse struct {

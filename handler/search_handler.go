@@ -78,10 +78,12 @@ func (h *SearchHandler) HandleAskAI() http.Handler {
 
 func (h *SearchHandler) sendError(w http.ResponseWriter, message string, status int) {
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "error",
-		"error":  message,
-	})
+	json.NewEncoder(w).Encode(
+		types.DataResponse{
+			Status:  false,
+			Message: message,
+		},
+	)
 }
 
 func (h *SearchHandler) sendSuccess(w http.ResponseWriter, docs []types.Document) {
@@ -90,7 +92,7 @@ func (h *SearchHandler) sendSuccess(w http.ResponseWriter, docs []types.Document
 		Documents: docs,
 	}
 	resData := types.DataResponse{
-		Status: "success",
+		Status: true,
 		Data:   searchRes,
 	}
 	json.NewEncoder(w).Encode(resData)
