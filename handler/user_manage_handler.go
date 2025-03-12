@@ -46,7 +46,6 @@ func (h *userManageHandler) HandleCreateUser() http.HandlerFunc {
 			// Hash password
 			Password:        req.Password,
 			FullName:        req.FullName,
-			Role:            req.Role,
 			Workspace:       req.Workspace,
 			ManagementLevel: req.ManagementLevel,
 			WorkspaceRole:   req.WorkspaceRole,
@@ -87,7 +86,6 @@ func (h *userManageHandler) HandlerBatchCreateUser() http.HandlerFunc {
 				// Hash password
 				Password:        userReq.Password,
 				FullName:        userReq.FullName,
-				Role:            userReq.Role,
 				Workspace:       userReq.Workspace,
 				ManagementLevel: userReq.ManagementLevel,
 				WorkspaceRole:   userReq.WorkspaceRole,
@@ -176,7 +174,6 @@ func (h *userManageHandler) HandleUpdateUser() http.HandlerFunc {
 			Password:        req.Password,
 			FullName:        req.FullName,
 			ManagementLevel: req.ManagementLevel,
-			Role:            req.Role,
 			WorkspaceRole:   req.WorkspaceRole,
 			Workspace:       req.Workspace,
 			UpdateAt:        time.Now().Unix(),

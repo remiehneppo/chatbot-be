@@ -24,3 +24,7 @@ type ProcessingDocumentStatus struct {
 	TotalPages     int     `json:"total_pages"`
 	ProcessedPages int     `json:"processed_pages"`
 }
+
+type LoginResponse struct {
+	AccessToken string `json:"access_token"`
+}

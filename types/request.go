@@ -37,3 +37,8 @@ type PaginateUserRequest struct {
 	Page  int64 `json:"page"`
 	Limit int64 `json:"limit"`
 }
+
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}

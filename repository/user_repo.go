@@ -17,6 +17,7 @@ type UserRepo interface {
 	PaginateUser(ctx context.Context, page int64, limit int64) ([]*types.User, int64, error)
 	UpdateUser(ctx context.Context, id string, user *types.User) error
 	DeleteUser(ctx context.Context, id string) error
+	GetUserByUsername(ctx context.Context, username string) (*types.User, error)
 }
 
 type userRepo struct {
@@ -111,4 +112,10 @@ func (r *userRepo) DeleteUser(ctx context.Context, id string) error {
 	}
 	_, err = r.collection.DeleteOne(ctx, map[string]bson.ObjectID{"_id": objId})
 	return err
+}
+
+func (r *userRepo) GetUserByUsername(ctx context.Context, username string) (*types.User, error) {
+	var user types.User
+	err := r.collection.FindOne(ctx, map[string]string{"username": username}).Decode(&user)
+	return &user, err
 }

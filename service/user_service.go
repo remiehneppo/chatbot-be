@@ -16,6 +16,7 @@ type UserService interface {
 	UpdateUser(ctx context.Context, id string, user *types.User) error
 	DeleteUser(ctx context.Context, id string) error
 	PaginateUser(ctx context.Context, page int64, limit int64) ([]*types.User, int64, error)
+	GetUserByUsername(ctx context.Context, username string) (*types.User, error)
 }
 
 type userService struct {
@@ -66,9 +67,6 @@ func (s *userService) UpdateUser(ctx context.Context, id string, user *types.Use
 	if user.FullName != "" {
 		dbUser.FullName = user.FullName
 	}
-	if user.Role != "" {
-		dbUser.Role = user.Role
-	}
 	if user.Workspace != "" {
 		dbUser.Workspace = user.Workspace
 	}
@@ -88,4 +86,8 @@ func (s *userService) DeleteUser(ctx context.Context, id string) error {
 
 func (s *userService) PaginateUser(ctx context.Context, page int64, limit int64) ([]*types.User, int64, error) {
 	return s.repo.PaginateUser(ctx, page, limit)
+}
+
+func (s *userService) GetUserByUsername(ctx context.Context, username string) (*types.User, error) {
+	return s.repo.GetUserByUsername(ctx, username)
 }
