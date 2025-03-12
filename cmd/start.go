@@ -6,8 +6,8 @@ package cmd
 import (
 	"context"
 	"log"
-	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"github.com/tieubaoca/chatbot-be/config"
 	"github.com/tieubaoca/chatbot-be/database"
@@ -70,33 +70,42 @@ var startServerCmd = &cobra.Command{
 
 		userMngHandler := handler.NewUserManageHandler(userService)
 		// Setup routes
-		// user request
-		userMux := http.NewServeMux()
-		userMux.Handle("/chat", chatHandler.HandleChat())
-		userMux.Handle("/documents/search", searchHandler.HandleSearch())
-		userMux.Handle("/documents/ask-ai", searchHandler.HandleAskAI())
-		userMux.Handle("/pdf", pdfHandler.ServeDocument()) // Add this line
+		// Setup Gin router
+		router := gin.Default()
 
-		// admin request
-		adminMux := http.NewServeMux()
-		adminMux.Handle("/upload", uploadHandler.UploadDocumentHandler())
-		adminMux.Handle("/users/create", userMngHandler.HandleCreateUser())
-		adminMux.Handle("/users/batch-create", userMngHandler.HandlerBatchCreateUser())
-		adminMux.Handle("/users/paginate", userMngHandler.HandlePaginateUser())
-		adminMux.Handle("/users/get", userMngHandler.HandleGetUser())
-		adminMux.Handle("/users/update", userMngHandler.HandleUpdateUser())
-		adminMux.Handle("/users/delete", userMngHandler.HandleDeleteUser())
+		// Apply global middleware
+		router.Use(corsHandler.CorsMiddleware)
 
-		mux := http.NewServeMux()
-		mux.Handle("/api/v1/", middleware.AuthMiddleware(userMux))
-		mux.Handle("/api/v1/login", loginHandler.HandleLogin())
-		mux.Handle("/admin/api/v1/", middleware.AdminAuthMiddleware(adminMux))
+		// API v1 routes - require authentication
+		apiV1 := router.Group("/api/v1")
+		apiV1.POST("/login", loginHandler.HandleLogin)
 
-		http.Handle("/", corsHandler.CorsMiddleware(mux))
+		// Protected user routes
+		userRoutes := apiV1.Group("/")
+		userRoutes.Use(middleware.AuthMiddleware)
+		{
+			userRoutes.POST("/chat", chatHandler.HandleChat)
+			userRoutes.GET("/documents/search", searchHandler.HandleSearch)
+			userRoutes.POST("/documents/ask-ai", searchHandler.HandleAskAI)
+			userRoutes.GET("/pdf", pdfHandler.ServeDocument)
+		}
 
-		log.Printf("Starting WebSocket server on port %s...\n", cfg.Port)
-		if err := http.ListenAndServe(":"+cfg.Port, nil); err != nil {
-			log.Fatal("ListenAndServe:", err)
+		// Admin routes - require admin authentication
+		adminRoutes := router.Group("/admin/api/v1")
+		adminRoutes.Use(middleware.AdminAuthMiddleware)
+		{
+			adminRoutes.POST("/upload", uploadHandler.UploadDocumentHandler)
+			adminRoutes.POST("/users/create", userMngHandler.HandleCreateUser)
+			adminRoutes.POST("/users/batch-create", userMngHandler.HandlerBatchCreateUser)
+			adminRoutes.GET("/users/paginate", userMngHandler.HandlePaginateUser)
+			adminRoutes.GET("/users/get", userMngHandler.HandleGetUser)
+			adminRoutes.PUT("/users/update", userMngHandler.HandleUpdateUser)
+			adminRoutes.DELETE("/users/delete", userMngHandler.HandleDeleteUser)
+		}
+
+		log.Printf("Starting server on port %s...\n", cfg.Port)
+		if err := router.Run(":" + cfg.Port); err != nil {
+			log.Fatal("Server error:", err)
 		}
 	},
 }

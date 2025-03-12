@@ -1,16 +1,16 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/tieubaoca/chatbot-be/service"
 	"github.com/tieubaoca/chatbot-be/types"
 	"github.com/tieubaoca/chatbot-be/utils"
 )
 
 type LoginHandler interface {
-	HandleLogin() http.HandlerFunc
+	HandleLogin(c *gin.Context)
 }
 
 type loginHandler struct {
@@ -23,40 +23,45 @@ func NewLoginHandler(userService service.UserService) LoginHandler {
 	}
 }
 
-func (h *loginHandler) HandleLogin() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		var req types.LoginRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
+func (h *loginHandler) HandleLogin(c *gin.Context) {
 
-		user, err := h.userService.GetUserByUsername(r.Context(), req.Username)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if user.Password != req.Password {
-			http.Error(w, "Invalid password", http.StatusUnauthorized)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		token, err := utils.GenerateUserToken(user)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		resp := types.DataResponse{
-			Status: true,
-			Data: types.LoginResponse{
-				AccessToken: token,
-			}}
-		json.NewEncoder(w).Encode(resp)
+	var req types.LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, types.DataResponse{
+			Status:  false,
+			Message: "Invalid request body",
+		})
+		return
 	}
+
+	user, err := h.userService.GetUserByUsername(c, req.Username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, types.DataResponse{
+			Status:  false,
+			Message: err.Error(),
+		})
+		return
+	}
+	if user.Password != req.Password {
+		c.JSON(http.StatusUnauthorized, types.DataResponse{
+			Status:  false,
+			Message: "Invalid password",
+		})
+		return
+	}
+	token, err := utils.GenerateUserToken(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, types.DataResponse{
+			Status:  false,
+			Message: err.Error(),
+		})
+		return
+	}
+	resp := types.DataResponse{
+		Status: true,
+		Data: types.LoginResponse{
+			AccessToken: token,
+		},
+	}
+	c.JSON(http.StatusOK, resp)
 }

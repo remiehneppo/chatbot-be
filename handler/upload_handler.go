@@ -2,9 +2,9 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	services "github.com/tieubaoca/chatbot-be/service"
 	"github.com/tieubaoca/chatbot-be/types"
 )
@@ -19,62 +19,75 @@ func NewUploadHandler(fileService *services.FileService) *UploadHandler {
 	}
 }
 
-func (h *UploadHandler) UploadDocumentHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+func (h *UploadHandler) UploadDocumentHandler(c *gin.Context) {
 
-		if r.Method != http.MethodPost {
-			h.sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			h.sendError(w, "Streaming unsupported", http.StatusInternalServerError)
-			return
-		}
-		// Giới hạn kích thước file 10MB
-		if err := r.ParseMultipartForm(10 << 20); err != nil {
-			h.sendError(w, "File too large", http.StatusBadRequest)
-			return
-		}
-		file, header, err := r.FormFile("file")
-		if err != nil {
-			h.sendError(w, "Invalid file", http.StatusBadRequest)
-			return
-		}
-		defer file.Close()
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, types.DataResponse{
+			Status:  false,
+			Message: "Invalid file",
+		})
+		return
+	}
+	defer file.Close()
 
-		// get request data
-		metadata := r.FormValue("metadata")
-		var req types.UploadRequest
-		err = json.Unmarshal([]byte(metadata), &req)
-		if err != nil {
-			h.sendError(w, "Invalid metadata", http.StatusBadRequest)
-			return
-		}
-		statusChan := make(chan types.ProcessingDocumentStatus)
-		errChan := make(chan error)
-		defer close(statusChan)
-		defer close(errChan)
-		go func() {
-			errChan <- h.fileService.UploadFile(req, header, statusChan)
-		}()
+	// Get metadata from form
+	metadata := c.Request.FormValue("metadata")
+	var req types.UploadRequest
+	if err := json.Unmarshal([]byte(metadata), &req); err != nil {
+		c.JSON(http.StatusBadRequest, types.DataResponse{
+			Status:  false,
+			Message: "Invalid metadata",
+		})
+		return
+	}
 
-		for {
-			select {
-			case status := <-statusChan:
-				jsonStatus, _ := json.Marshal(status)
-				fmt.Fprintf(w, string(jsonStatus))
-				flusher.Flush()
-			case err := <-errChan:
-				if err != nil {
-					h.sendError(w, err.Error(), http.StatusInternalServerError)
-				} else {
-					h.sendSuccess(w, req.Title)
-				}
+	const maxSize = 10 << 20
+	if header.Size > maxSize {
+		c.JSON(http.StatusBadRequest, types.DataResponse{
+			Status:  false,
+			Message: "File too large",
+		})
+		return
+	}
+
+	statusChan := make(chan types.ProcessingDocumentStatus)
+	errChan := make(chan error)
+	defer close(statusChan)
+	defer close(errChan)
+	go func() {
+		errChan <- h.fileService.UploadFile(req, header, statusChan)
+	}()
+	// Create a channel to detect client disconnect
+	clientGone := c.Writer.CloseNotify()
+	for {
+		select {
+		case <-clientGone:
+			return // Client disconnected
+		case status := <-statusChan:
+			jsonStatus, err := json.Marshal(status)
+			if err != nil {
+				continue
 			}
+			c.SSEvent("message", string(jsonStatus))
+			c.Writer.Flush()
+		case err := <-errChan:
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, types.DataResponse{
+					Status:  false,
+					Message: err.Error(),
+				})
+			} else {
+				c.JSON(http.StatusOK, types.DataResponse{
+					Status: true,
+					Data: types.UploadResponse{
+						OriginalName: req.Title,
+					},
+				})
+			}
+			return
 		}
-	})
+	}
 
 }
 

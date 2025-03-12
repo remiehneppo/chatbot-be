@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/tieubaoca/chatbot-be/service"
 	"github.com/tieubaoca/chatbot-be/types"
 )
@@ -18,33 +18,32 @@ func NewChatHandler(aiService *service.OpenAIService) *ChatHandler {
 	}
 }
 
-func (h *ChatHandler) HandleChat() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
+func (h *ChatHandler) HandleChat(c *gin.Context) {
 
-		var chatRequest types.ChatRequest
-		if err := json.NewDecoder(r.Body).Decode(&chatRequest); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-
-		response, err := h.aiService.Chat(r.Context(), chatRequest.Messages)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(
-			types.DataResponse{
-				Status: true,
-				Data: types.ChatResponse{
-					Message: response,
-				},
-			},
-		)
+	var chatRequest types.ChatRequest
+	if err := c.ShouldBindJSON(&chatRequest); err != nil {
+		c.JSON(http.StatusBadRequest, types.DataResponse{
+			Status:  false,
+			Message: "Invalid request body",
+		})
 	}
+
+	response, err := h.aiService.Chat(c, chatRequest.Messages)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, types.DataResponse{
+			Status:  false,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK,
+		types.DataResponse{
+			Status: true,
+			Data: types.ChatResponse{
+				Message: response,
+			},
+		},
+	)
+
 }

@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/tieubaoca/chatbot-be/types"
 )
 
 type DocumentHandler struct {
@@ -19,42 +22,42 @@ func NewDocumentHandler(uploadDir string) *DocumentHandler {
 	}
 }
 
-func (h *DocumentHandler) ServeDocument() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
+func (h *DocumentHandler) ServeDocument(c *gin.Context) {
 
-		// Get filename from query parameter
-		requestedName := r.URL.Query().Get("file")
-		if requestedName == "" {
-			http.Error(w, "File parameter is required", http.StatusBadRequest)
-			return
-		}
+	// Get filename from query parameter
+	requestedName := c.Query("file")
 
-		// Validate filename extension
-		if filepath.Ext(requestedName) != ".pdf" {
-			http.Error(w, "Only PDF files are allowed", http.StatusBadRequest)
-			return
-		}
+	// Validate filename extension
+	if filepath.Ext(requestedName) != ".pdf" {
+		c.JSON(http.StatusBadRequest, types.DataResponse{
+			Status:  false,
+			Message: "Invalid file extension",
+		})
+		return
+	}
 
-		// Find actual file with timestamp
-		actualFile, err := h.findFileWithTimestamp(requestedName)
-		if err != nil {
-			http.Error(w, "File not found", http.StatusNotFound)
-			return
-		}
+	// Find actual file with timestamp
+	actualFile, err := h.findFileWithTimestamp(requestedName)
+	if err != nil {
+		c.JSON(
+			http.StatusNotFound,
+			types.DataResponse{
+				Status:  false,
+				Message: err.Error(),
+			},
+		)
+		return
+	}
 
-		filePath := filepath.Join(h.uploadDir, actualFile)
+	filePath := filepath.Join(h.uploadDir, actualFile)
 
-		// Set appropriate headers
-		w.Header().Set("Content-Type", "application/pdf")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%s", requestedName))
+	// Set appropriate headers
+	// w.Header().Set("Content-Type", "application/pdf")
+	// w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%s", requestedName))
 
-		// Stream the file to the client
-		http.ServeFile(w, r, filePath)
-	})
+	// // Stream the file to the client
+	// http.ServeFile(w, r, filePath)
+	c.File(filePath)
 }
 
 func (h *DocumentHandler) findFileWithTimestamp(requestedName string) (string, error) {

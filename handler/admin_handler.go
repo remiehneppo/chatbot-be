@@ -1,16 +1,15 @@
 package handler
 
 import (
-	"net/http"
-
+	"github.com/gin-gonic/gin"
 	"github.com/tieubaoca/chatbot-be/service"
 )
 
 type AdminManageHandler interface {
-	HandleCreateAdmin() http.HandlerFunc
-	HandleGetAdmin() http.HandlerFunc
-	HandleUpdateAdmin() http.HandlerFunc
-	HandleDeleteAdmin() http.HandlerFunc
+	HandleCreateAdmin(c *gin.Context)
+	HandleGetAdmin(c *gin.Context)
+	HandleUpdateAdmin(c *gin.Context)
+	HandleDeleteAdmin(c *gin.Context)
 }
 
 type adminManageHandler struct {
@@ -23,24 +22,18 @@ func NewAdminManageHandler(adminService service.AdminService) AdminManageHandler
 	}
 }
 
-func (h *adminManageHandler) HandleCreateAdmin() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-	}
+func (h *adminManageHandler) HandleCreateAdmin(c *gin.Context) {
+
 }
 
-func (h *adminManageHandler) HandleGetAdmin() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-	}
+func (h *adminManageHandler) HandleGetAdmin(c *gin.Context) {
+
 }
 
-func (h *adminManageHandler) HandleUpdateAdmin() http.HandlerFunc {
+func (h *adminManageHandler) HandleUpdateAdmin(c *gin.Context) {
 
-	return func(w http.ResponseWriter, r *http.Request) {
-	}
 }
 
-func (h *adminManageHandler) HandleDeleteAdmin() http.HandlerFunc {
+func (h *adminManageHandler) HandleDeleteAdmin(c *gin.Context) {
 
-	return func(w http.ResponseWriter, r *http.Request) {
-	}
 }
