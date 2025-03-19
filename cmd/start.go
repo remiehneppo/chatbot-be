@@ -15,7 +15,6 @@ import (
 	"github.com/tieubaoca/chatbot-be/middleware"
 	"github.com/tieubaoca/chatbot-be/repository"
 	"github.com/tieubaoca/chatbot-be/service"
-	"github.com/tieubaoca/chatbot-be/types"
 )
 
 // startServerCmd represents the startServer command
@@ -31,11 +30,7 @@ var startServerCmd = &cobra.Command{
 		}
 		// Initialize services
 
-		pdfService := service.NewPDFService(
-			types.DocumentServiceConfig{
-				MaxChunkSize: 1000,
-				OverlapSize:  100,
-			})
+		pdfService := service.NewPDFService(service.DefaultDocumentServiceConfig)
 
 		weaviateDb, err := database.NewWeaviateStore(cfg.WeaviateStoreConfig)
 		if err != nil {
@@ -85,7 +80,7 @@ var startServerCmd = &cobra.Command{
 		userRoutes.Use(middleware.AuthMiddleware)
 		{
 			userRoutes.POST("/chat", chatHandler.HandleChat)
-			userRoutes.GET("/documents/search", searchHandler.HandleSearch)
+			userRoutes.POST("/documents/search", searchHandler.HandleSearch)
 			userRoutes.POST("/documents/ask-ai", searchHandler.HandleAskAI)
 			userRoutes.GET("/pdf", pdfHandler.ServeDocument)
 		}

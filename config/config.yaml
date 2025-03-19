@@ -1,6 +1,6 @@
 ai_endpoint: "http://localhost:11434/v1/"
 port: 8888
-model: "llama8b"
+model: "deepseek-r1:14b"
 upload_dir: "upload"
 weaviate_store_config:
   host: "http://localhost:8080"

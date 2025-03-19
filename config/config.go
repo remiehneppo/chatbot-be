@@ -15,7 +15,6 @@ var OllamaT2VModuleConfig = map[string]interface{}{
 var OllamaGenerativeConfig = map[string]interface{}{
 	"generative-ollama": map[string]interface{}{
 		"apiEndpoint": "http://host.docker.internal:11434",
-		"model":       "llama8b",
 	},
 }
 
@@ -60,6 +59,7 @@ func LoadConfig(configPath string) (*Config, error) {
 	if err := v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
+	OllamaGenerativeConfig["generative-ollama"].(map[string]interface{})["model"] = config.Model
 	config.WeaviateStoreConfig.ModuleConfig = OllamaGenerativeConfig
 
 	if config.WeaviateStoreConfig.Text2Vec == "text2vec-ollama" {

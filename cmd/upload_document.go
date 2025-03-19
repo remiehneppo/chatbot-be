@@ -64,6 +64,7 @@ to quickly create a Cobra application.`,
 			Title: service.GetFileNameWithoutExt(filePath),
 			Tags:  tags,
 		}
+		log.Printf("Processing PDF file: %s with title: %s and tags: %v", destPath, req.Title, req.Tags)
 		go pdfService.ProcessPDF(destPath, req, chunkChan)
 		// testFile, err := os.Create("test.txt")
 		if err != nil {
