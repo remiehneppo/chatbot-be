@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/viper"
 )
@@ -59,6 +60,7 @@ func LoadConfig(configPath string) (*Config, error) {
 	if err := v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
+	config.WeaviateStoreConfig.APIKey = os.Getenv("WEAVIATE_APIKEY")
 	OllamaGenerativeConfig["generative-ollama"].(map[string]interface{})["model"] = config.Model
 	config.WeaviateStoreConfig.ModuleConfig = OllamaGenerativeConfig
 
